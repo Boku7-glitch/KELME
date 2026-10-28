@@ -8,7 +8,7 @@ export const SHOP_CONFIG = {
   facebook: 'https://facebook.com/kelmegeorgia',
   tiktok: 'https://tiktok.com/@kelmegeorgia',
   globalReferenceUrl: 'https://kelmeshop.ru/',
-  academySisterUrl: process.env.NEXT_PUBLIC_ACADEMY_URL || 'http://localhost:3000',
+  academySisterUrl: 'https://tfilisi-football-academy.vercel.app/',
   phone: '+995 599 00 00 00',
   address: 'თბილისი, კახეთის გზატკეცილი 2, ს/ც ისთ ფოინთი (Sport Avenue)',
   hours: 'ყოველდღე 10:00 – 22:00',

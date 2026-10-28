@@ -1,6 +1,4 @@
-import { readFileSync } from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
-import path from 'node:path';
 import { Product, Order, OrderLine, ShippingMethod, PaymentMethod } from '../../types/store';
 import { INITIAL_PRODUCTS } from '../../data/initialProducts';
 import { ORDER_STATUS_KA } from '../../data/storeConfig';
@@ -22,25 +20,6 @@ export function loadProducts(): {
   byId: Record<string, Product>;
   version: string;
 } {
-  const candidates = [
-    path.join(process.cwd(), 'public', 'products.json'),
-    path.join(process.env.LAMBDA_TASK_ROOT || '', 'public', 'products.json'),
-  ];
-  for (const f of candidates) {
-    try {
-      const raw = readFileSync(f, 'utf8');
-      const list = JSON.parse(raw) as Product[];
-      const normalized = list.map((p) => ({
-        ...p,
-        img: p.img.startsWith('/') ? p.img : `/${p.img}`,
-      }));
-      return {
-        list: normalized,
-        byId: Object.fromEntries(normalized.map((p) => [p.id, p])),
-        version: createHash('sha1').update(raw).digest('hex').slice(0, 12),
-      };
-    } catch {}
-  }
   const raw = JSON.stringify(INITIAL_PRODUCTS);
   return {
     list: INITIAL_PRODUCTS,

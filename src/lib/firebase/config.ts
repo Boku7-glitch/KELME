@@ -1,6 +1,6 @@
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -22,13 +22,21 @@ export const isFirebaseConfigured = (): boolean => {
   );
 };
 
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+let app: FirebaseApp | null = null;
+let authInstance: Auth | null = null;
+let dbInstance: Firestore | null = null;
 
-export const auth =
-  typeof window !== 'undefined' || isFirebaseConfigured() ? getAuth(app) : null;
-export const db =
-  typeof window !== 'undefined' || isFirebaseConfigured()
-    ? getFirestore(app)
-    : null;
+if (isFirebaseConfigured()) {
+  try {
+    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    authInstance = getAuth(app);
+    dbInstance = getFirestore(app);
+  } catch (e) {
+    console.warn('Firebase initialization skipped:', e);
+  }
+}
+
+export const auth = authInstance;
+export const db = dbInstance;
 
 export default app;
