@@ -1,0 +1,160 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Cabin";
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/cabin-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Cabin";
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/cabin-latin-700-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Noto Sans Georgian";
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBF, U+2D00-2D2F;
+  src: url("/fonts/noto-sans-georgian-georgian-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Noto Sans Georgian";
+  font-weight: 600;
+  font-display: swap;
+  unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBF, U+2D00-2D2F;
+  src: url("/fonts/noto-sans-georgian-georgian-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Noto Sans Georgian";
+  font-weight: 700;
+  font-display: swap;
+  unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBF, U+2D00-2D2F;
+  src: url("/fonts/noto-sans-georgian-georgian-700-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Noto Sans Georgian";
+  font-weight: 800;
+  font-display: swap;
+  unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBF, U+2D00-2D2F;
+  src: url("/fonts/noto-sans-georgian-georgian-800-normal.woff2") format("woff2");
+}
+
+:root {
+  --ink: #111214;
+  --ink2: #000000;
+  --mut: #6b6f76;
+  --line: #e6e6e3;
+  --soft: #f4f4f1;
+  --bg: #ffffff;
+  --red: #d7141e;
+  --red-dark: #b00f17;
+  --green: #12784a;
+  --head: "Cabin", "Noto Sans Georgian", Helvetica, Arial, sans-serif;
+  --body: "Noto Sans Georgian", "Cabin", Helvetica, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Native <dialog> backdrop styling (Modern Web Guidance: light-dismiss-a-dialog) */
+dialog::backdrop {
+  background-color: rgba(10, 10, 12, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+dialog[open] {
+  animation: dialogPopIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes dialogPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Form validation after interaction (Modern Web Guidance: validate-input-after-interaction) */
+.kelme-field .error-msg {
+  display: none;
+  color: #d7141e;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-top: 0.35rem;
+}
+
+.kelme-field input:user-invalid,
+.kelme-field textarea:user-invalid,
+.kelme-field input.user-invalid-fallback,
+.kelme-field textarea.user-invalid-fallback {
+  border-color: #d7141e !important;
+  background-color: #fef2f2 !important;
+}
+
+.kelme-field input:user-invalid + .error-msg,
+.kelme-field textarea:user-invalid + .error-msg,
+.kelme-field input.user-invalid-fallback + .error-msg,
+.kelme-field textarea.user-invalid-fallback + .error-msg {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.kelme-field input:user-valid,
+.kelme-field input.user-valid-fallback {
+  border-color: #12784a;
+}
+
+/* Marquee animation for promo bar */
+@keyframes kelmeMarquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-kelme-marquee {
+  display: inline-flex;
+  animation: kelmeMarquee 34s linear infinite;
+}
+
+.animate-kelme-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Diagonal strike-through for out-of-stock size buttons */
+.size-btn-disabled {
+  color: #b9b6b5;
+  cursor: not-allowed;
+  background: repeating-linear-gradient(
+    135deg,
+    #ffffff 0 6px,
+    #f5f5f3 6px 12px
+  );
+}
