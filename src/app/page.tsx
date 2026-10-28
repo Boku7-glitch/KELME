@@ -1,1788 +1,2290 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  ShieldCheck,
-  MapPin,
-  CreditCard,
-  RefreshCw,
-  ArrowRight,
-  Check,
-  ChevronRight,
-  Ruler,
-  MessageCircle,
-  ExternalLink,
-  ShoppingBag,
-  Sparkles,
-  Phone,
-  Clock,
-} from 'lucide-react';
-import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
-import ProductCard from '../components/ProductCard';
-import QuickViewDialog from '../components/QuickViewDialog';
-import CartDrawer from '../components/CartDrawer';
-import SearchOverlay from '../components/SearchOverlay';
-import SizeGuideDialog from '../components/SizeGuideDialog';
-import {
-  useStore,
-  totalStockOf,
-  formatMoney,
-} from '../context/StoreContext';
-import {
-  CATEGORIES,
-  SHOP_CONFIG,
-  ORDER_STATUS_KA,
-  SIZE_GUIDE_DATA,
-} from '../data/storeConfig';
-import {
-  CategoryKey,
-  FilterCategoryKey,
-  ShippingMethod,
-  PaymentMethod,
-} from '../types/store';
+  ANNOUNCEMENT_MESSAGES,
+  KELME_LOGO_URL,
+  KELME_NAV_ITEMS,
+  HERO_SLIDES,
+  FEATURED_COLLECTION_1,
+  KELME_PROMO_VIDEO_MP4,
+  MEDIA_GRID_ITEMS,
+  FEATURED_COLLECTION_2,
+  COLLECTION_CARDS,
+  JUDGEME_SUMMARY,
+  BLOG_POSTS,
+  FOOTER_INFO_LINKS,
+  COUNTRIES_LIST,
+  LANGUAGES_LIST,
+  KelmeProductItem,
+} from '../data/kelmeOfficialData';
 
-export default function KelmeStorePage() {
-  const {
-    products,
-    byId,
-    modelsMap,
-    cart,
-    cartSubtotal,
-    cartSavings,
-    addToCart,
-    clearCart,
-    activeView,
-    activeCategory,
-    selectedSizeFilter,
-    setSelectedSizeFilter,
-    selectedSort,
-    setSelectedSort,
-    activeProductId,
-    activeOrderId,
-    lastOrderDetails,
-    activeInfoKey,
-    navigateHome,
-    navigateToCategory,
-    navigateToProduct,
-    navigateToCheckout,
-    navigateToOrderOk,
-    navigateToTeam,
-    navigateToStore,
-    navigateToInfo,
-    setIsSizeGuideOpen,
-    showToast,
-  } = useStore();
+interface CartItem {
+  product: KelmeProductItem;
+  size: string;
+  quantity: number;
+}
 
-  // Product Detail state
-  const [pdpSelectedSize, setPdpSelectedSize] = useState<string>('');
-  const [pdpError, setPdpError] = useState<string>('');
-
-  // Checkout state
-  const [shipMethod, setShipMethod] = useState<ShippingMethod>('pickup');
-  const [payMethod, setPayMethod] = useState<PaymentMethod>('store');
-  const [ckSubmitting, setCkSubmitting] = useState(false);
-  const [ckError, setCkError] = useState('');
-
-  // Order OK live status
-  const [liveOrderStatus, setLiveOrderStatus] = useState<string>('new');
-
-  // B2B Lead form state
-  const [leadSubmitting, setLeadSubmitting] = useState(false);
-
-  // Sync aria-invalid with :user-invalid on blur & input (Modern Web Guidance: validate-input-after-interaction)
-  const syncInputAria = (
-    e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement> | React.FormEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const el = e.currentTarget;
-    if (!el || typeof el.checkValidity !== 'function') return;
-    const isValid = el.checkValidity();
-    if (e.type === 'blur' || el.hasAttribute('aria-invalid')) {
-      el.setAttribute('aria-invalid', isValid ? 'false' : 'true');
-      el.classList.toggle('user-invalid-fallback', !isValid);
-      el.classList.toggle('user-valid-fallback', isValid);
-    }
-  };
-
-  // Reset PDP selected size when activeProductId changes
-  useEffect(() => {
-    if (!activeProductId) return;
-    const p = byId[activeProductId];
-    if (
-      p &&
-      selectedSizeFilter &&
-      (p.sizes[selectedSizeFilter] || 0) > 0
-    ) {
-      setPdpSelectedSize(selectedSizeFilter);
-    } else {
-      setPdpSelectedSize('');
-    }
-    setPdpError('');
-  }, [activeProductId, byId, selectedSizeFilter]);
-
-  // Fetch order status on Order OK screen
-  useEffect(() => {
-    if (activeView !== 'order-ok' || !activeOrderId) return;
-    fetch(`/api/order-status?id=${encodeURIComponent(activeOrderId)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d?.status) setLiveOrderStatus(d.status);
-      })
-      .catch(() => {});
-  }, [activeView, activeOrderId]);
-
-  // All available EU sizes across catalog
-  const allSizes = useMemo(() => {
-    const set = new Set<string>();
-    products.forEach((p) => {
-      Object.entries(p.sizes).forEach(([sz, q]) => {
-        if (q > 0) set.add(sz);
-      });
-    });
-    return Array.from(set).sort((a, b) => Number(a) - Number(b));
-  }, [products]);
-
-  // Filtered & sorted products for Shop / Collection
-  const filteredProducts = useMemo(() => {
-    let list = products.filter((p) => {
-      if (totalStockOf(p) <= 0) return false;
-      if (activeCategory === 'all') return true;
-      if (activeCategory === 'sale') return p.disc > 0;
-      return p.cat === activeCategory;
-    });
-
-    if (selectedSizeFilter) {
-      list = list.filter((p) => (p.sizes[selectedSizeFilter] || 0) > 0);
-    }
-
-    const sorted = [...list];
-    if (selectedSort === 'disc') {
-      sorted.sort((a, b) => b.disc - a.disc);
-    } else if (selectedSort === 'asc') {
-      sorted.sort((a, b) => a.sale - b.sale);
-    } else if (selectedSort === 'desc') {
-      sorted.sort((a, b) => b.sale - a.sale);
-    } else {
-      sorted.sort(
-        (a, b) =>
-          Number(b.disc > 0) - Number(a.disc > 0) ||
-          totalStockOf(b) - totalStockOf(a)
-      );
-    }
-    return sorted;
-  }, [products, activeCategory, selectedSizeFilter, selectedSort]);
-
-  const filterChips: { key: FilterCategoryKey; label: string }[] = [
-    { key: 'all', label: 'ყველა' },
-    { key: 'sale', label: 'SALE −70%' },
-    { key: 'football', label: 'ფეხბურთი' },
-    { key: 'sport', label: 'სპორტი' },
-    { key: 'casual', label: 'ყოველდღიური' },
-    { key: 'kids', label: 'ბავშვები' },
-  ];
-
-  // Checkout Submit Handler
-  const handleCheckoutSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setCkError('');
-    const form = e.currentTarget;
-    if (!form.checkValidity()) {
-      const firstInvalid = form.querySelector<HTMLElement>(':invalid');
-      firstInvalid?.focus();
-      setCkError('გთხოვთ შეავსოთ სავალდებულო ველები სწორად');
-      return;
-    }
-
-    const fd = new FormData(form);
-    const name = String(fd.get('name') || '').trim();
-    const phone = String(fd.get('phone') || '').trim();
-    const email = String(fd.get('email') || '').trim();
-    const city = String(fd.get('city') || '').trim();
-    const address = String(fd.get('address') || '').trim();
-    const note = String(fd.get('note') || '').trim();
-    const website = String(fd.get('website') || '');
-
-    if (shipMethod !== 'pickup' && (!city || address.length < 4)) {
-      setCkError('მიწოდებისთვის აუცილებელია ქალაქის და მისამართის მითითება');
-      return;
-    }
-
-    setCkSubmitting(true);
-    try {
-      const res = await fetch('/api/order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          website,
-          items: cart.map((c) => ({ id: c.id, size: c.size, q: c.q })),
-          customer: { name, phone, email },
-          ship: shipMethod,
-          city,
-          address,
-          pay: payMethod,
-          note,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setCkError(data.error || 'შეკვეთის გაფორმება ვერ მოხერხდა');
-        setCkSubmitting(false);
-        return;
-      }
-
-      if (data.redirect) {
-        clearCart();
-        window.location.href = data.redirect;
-        return;
-      }
-
-      clearCart();
-      navigateToOrderOk(data.orderId, data.order);
-    } catch {
-      setCkError('კავშირის შეცდომა. სცადეთ თავიდან.');
-    } finally {
-      setCkSubmitting(false);
-    }
-  };
-
-  // B2B Lead Submit Handler
-  const handleLeadSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    if (!form.checkValidity()) {
-      form.querySelector<HTMLElement>(':invalid')?.focus();
-      return;
-    }
-    const fd = new FormData(form);
-    setLeadSubmitting(true);
-    try {
-      const res = await fetch('/api/order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'lead',
-          website: fd.get('website') || '',
-          org: fd.get('org') || '',
-          name: fd.get('name') || '',
-          phone: fd.get('phone') || '',
-          qty: fd.get('qty') || '',
-          note: fd.get('note') || '',
-        }),
-      });
-      if (res.ok) {
-        form.reset();
-        showToast('✅ მოთხოვნა მიღებულია! ჩვენი მენეჯერი მალე დაგიკავშირდებათ.');
-      } else {
-        const d = await res.json().catch(() => ({}));
-        showToast(d.error || 'შეავსეთ სავალდებულო ველები');
-      }
-    } catch {
-      showToast('შეცდომა გაგზავნისას');
-    } finally {
-      setLeadSubmitting(false);
-    }
-  };
-
-  const heroRetrobasket = byId['17500-73'] || products[0];
-  const heroMadrid = byId['46976-1604'] || products[0];
-  const heroHeritage = byId['55147-3'] || products[0];
-
-  const deliveryFee =
-    shipMethod === 'pickup'
-      ? 0
-      : SHOP_CONFIG.delivery.freeFrom &&
-          cartSubtotal >= SHOP_CONFIG.delivery.freeFrom
-        ? 0
-        : shipMethod === 'tbilisi'
-          ? SHOP_CONFIG.delivery.tbilisi
-          : SHOP_CONFIG.delivery.regions;
+function StarRating({ ratingStr }: { ratingStr: string }) {
+  const num = parseFloat(ratingStr.replace(/[()]/g, '')) || 5.0;
+  const fullStars = Math.floor(num);
+  const hasHalf = num - fullStars >= 0.3;
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      <CartDrawer />
-      <SearchOverlay />
-      <QuickViewDialog />
-      <SizeGuideDialog />
+    <div className="inline-flex items-center gap-1.5 mt-0.5">
+      <div
+        className="inline-flex items-center gap-0.5"
+        role="img"
+        aria-label={`${num} out of 5.0 stars`}
+      >
+        {[0, 1, 2, 3, 4].map((i) => {
+          if (i < fullStars) {
+            return (
+              <svg
+                key={i}
+                aria-hidden="true"
+                focusable="false"
+                width="12"
+                height="11"
+                viewBox="0 0 12 11"
+              >
+                <path
+                  d="M6 0v8.635L2.292 11 3.48 6.87 0 4.202l4.443-.187L6 0Zm0 0v8.635L9.708 11 8.52 6.87 12 4.202l-4.443-.187L6 0Z"
+                  fill="#231f20"
+                />
+              </svg>
+            );
+          }
+          if (i === fullStars && hasHalf) {
+            return (
+              <svg
+                key={i}
+                aria-hidden="true"
+                focusable="false"
+                width="12"
+                height="11"
+                viewBox="0 0 12 11"
+              >
+                <path
+                  d="M6 0v8.635L2.292 11 3.48 6.87 0 4.202l4.443-.187L6 0Z"
+                  fill="#231f20"
+                />
+                <path
+                  d="M6 0v8.635L9.708 11 8.52 6.87 12 4.202l-4.443-.187L6 0Z"
+                  fill="#231f20"
+                  fillOpacity="0.35"
+                />
+              </svg>
+            );
+          }
+          return (
+            <svg
+              key={i}
+              aria-hidden="true"
+              focusable="false"
+              width="12"
+              height="11"
+              viewBox="0 0 12 11"
+            >
+              <path
+                d="M6 0v8.635L2.292 11 3.48 6.87 0 4.202l4.443-.187L6 0Zm0 0v8.635L9.708 11 8.52 6.87 12 4.202l-4.443-.187L6 0Z"
+                fill="#231f20"
+                fillOpacity="0.25"
+              />
+            </svg>
+          );
+        })}
+      </div>
+      <span className="text-[12px] text-black/60 leading-none">{ratingStr}</span>
+    </div>
+  );
+}
 
-      <main className="flex-1">
-        {/* =========================================================
-            VIEW 1: HOME PAGE (HERO + CATEGORIES + SHOP + B2B + STORE)
-            ========================================================= */}
-        {activeView === 'home' && (
-          <>
-            {/* Split Athletic Hero Banner */}
-            <section className="bg-[#F4F4F1] overflow-hidden border-b border-[#E6E6E3]">
-              <div className="max-w-[1380px] mx-auto px-4 sm:px-8 py-10 lg:py-14 grid grid-cols-1 lg:grid-cols-[1.05fr_1fr] items-center gap-8 min-h-[500px]">
-                {/* Left Hero Copy */}
-                <div>
-                  <div className="inline-flex items-center gap-2 bg-[#D7141E] text-white font-black text-xs tracking-[0.12em] uppercase px-3 py-1.5 rounded-sm mb-4">
-                    <span>SEASON SALE · KELME GEORGIA</span>
-                  </div>
-                  <h1 className="font-black text-4xl sm:text-6xl lg:text-[74px] leading-[0.96] tracking-tight text-[#111214]">
-                    ფეხსაცმელი
-                    <br />
-                    <span className="text-[#D7141E]">−70%-მდე</span>
-                  </h1>
-                  <p className="text-base sm:text-lg text-[#3B3E44] max-w-lg mt-4 mb-7 leading-relaxed">
-                    ფეხბურთის, ფუტსალის, სარბენი და ყოველდღიური KELME-ს
-                    ორიგინალი ფეხსაცმელი. დაჯავშნე ონლაინ — მარაგი შეზღუდულია.
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => navigateToCategory('sale', true)}
-                      className="h-13 px-7 rounded-full bg-[#D7141E] hover:bg-[#B00F17] text-white font-bold text-sm inline-flex items-center gap-2 transition-colors shadow-md cursor-pointer"
+export default function KelmeOfficialPage() {
+  // Announcement bar state
+  const [announcementIdx, setAnnouncementIdx] = useState(0);
+
+  // Hero slideshow state
+  const [heroIdx, setHeroIdx] = useState(0);
+
+  // Header navigation hover states
+  const [activeNav, setActiveNav] = useState<string | null>(null);
+  const [activeSubDropdown, setActiveSubDropdown] = useState<string | null>(null);
+
+  // Scroll-reveal states (matching theme.js IntersectionObserver reveal-on-scroll)
+  const [fc1Revealed, setFc1Revealed] = useState(false);
+  const [mediaGridRevealed, setMediaGridRevealed] = useState(false);
+  const [fc2Revealed, setFc2Revealed] = useState(false);
+
+  // Localization state
+  const [selectedCountry, setSelectedCountry] = useState(COUNTRIES_LIST[0]);
+  const [selectedLanguage, setSelectedLanguage] = useState(LANGUAGES_LIST[0]);
+  const [countryPopoverOpen, setCountryPopoverOpen] = useState(false);
+  const [langPopoverOpen, setLangPopoverOpen] = useState(false);
+  const [footerCountryOpen, setFooterCountryOpen] = useState(false);
+  const [footerLangOpen, setFooterLangOpen] = useState(false);
+
+  // Drawers & modals state
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileExpandedItem, setMobileExpandedItem] = useState<string | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [quickBuyProduct, setQuickBuyProduct] = useState<KelmeProductItem | null>(
+    null
+  );
+  const [selectedSize, setSelectedSize] = useState<string>('42');
+
+  // Cart state
+  const [cart, setCart] = useState<CartItem[]>([]);
+
+  // Judge.me AI Summary toggle
+  const [showAiSummary, setShowAiSummary] = useState(false);
+
+  // Newsletter state
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
+
+  // Carousel & section refs
+  const fc1Ref = useRef<HTMLDivElement>(null);
+  const fc2Ref = useRef<HTMLDivElement>(null);
+  const colListRef = useRef<HTMLDivElement>(null);
+  const fc1SectionRef = useRef<HTMLElement>(null);
+  const mediaGridSectionRef = useRef<HTMLElement>(null);
+  const fc2SectionRef = useRef<HTMLElement>(null);
+
+  // Auto-rotate announcement bar every 4s
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setAnnouncementIdx((prev) => (prev + 1) % ANNOUNCEMENT_MESSAGES.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Auto-rotate hero slideshow every 4.5s
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setHeroIdx((prev) => (prev + 1) % HERO_SLIDES.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, []);
+
+  // IntersectionObserver for scroll-reveal (matching theme.js inView)
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          if (entry.target === fc1SectionRef.current) setFc1Revealed(true);
+          if (entry.target === mediaGridSectionRef.current)
+            setMediaGridRevealed(true);
+          if (entry.target === fc2SectionRef.current) setFc2Revealed(true);
+        });
+      },
+      { rootMargin: '-80px 0px 0px 0px', threshold: 0.1 }
+    );
+
+    if (fc1SectionRef.current) observer.observe(fc1SectionRef.current);
+    if (mediaGridSectionRef.current)
+      observer.observe(mediaGridSectionRef.current);
+    if (fc2SectionRef.current) observer.observe(fc2SectionRef.current);
+
+    return () => observer.disconnect();
+  }, []);
+
+  const formatMoney = (eurAmount: number) => {
+    const converted = (eurAmount * selectedCountry.rate).toFixed(2);
+    const formatted =
+      selectedCountry.symbol === '€' ? converted.replace('.', ',') : converted;
+    return `${selectedCountry.symbol}${formatted}`;
+  };
+
+  const scrollContainer = (
+    ref: React.RefObject<HTMLDivElement | null>,
+    dir: 'prev' | 'next'
+  ) => {
+    if (!ref.current) return;
+    const amount = ref.current.clientWidth * 0.75;
+    ref.current.scrollBy({
+      left: dir === 'next' ? amount : -amount,
+      behavior: 'smooth',
+    });
+  };
+
+  const openQuickBuy = (product: KelmeProductItem) => {
+    setQuickBuyProduct(product);
+    setSelectedSize(product.sizes[2] || product.sizes[0] || '42');
+  };
+
+  const addToCart = (product: KelmeProductItem, size: string) => {
+    setCart((prev) => {
+      const existingIdx = prev.findIndex(
+        (item) => item.product.id === product.id && item.size === size
+      );
+      if (existingIdx > -1) {
+        const updated = [...prev];
+        updated[existingIdx] = {
+          ...updated[existingIdx],
+          quantity: updated[existingIdx].quantity + 1,
+        };
+        return updated;
+      }
+      return [...prev, { product, size, quantity: 1 }];
+    });
+    setQuickBuyProduct(null);
+    setCartOpen(true);
+  };
+
+  const updateCartQty = (id: string, size: string, delta: number) => {
+    setCart((prev) =>
+      prev
+        .map((item) =>
+          item.product.id === id && item.size === size
+            ? { ...item, quantity: item.quantity + delta }
+            : item
+        )
+        .filter((item) => item.quantity > 0)
+    );
+  };
+
+  const totalCartItems = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const totalCartAmount = cart.reduce(
+    (acc, item) => acc + item.product.salePrice * item.quantity,
+    0
+  );
+
+  const allProducts = [...FEATURED_COLLECTION_1, ...FEATURED_COLLECTION_2].filter(
+    (p, idx, arr) => arr.findIndex((x) => x.handle === p.handle) === idx
+  );
+  const filteredSearchProducts = searchQuery.trim()
+    ? allProducts.filter((p) =>
+        p.title.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : allProducts.slice(0, 4);
+
+  return (
+    <div className="min-h-screen flex flex-col bg-white text-black relative">
+      {/* =====================================================================
+          SECTION 1: STICKY WHITE HEADER (shopify-section--header)
+         ===================================================================== */}
+      <header
+        className="sticky top-0 z-40 bg-white text-[#231f20] w-full transition-transform duration-300"
+        onMouseLeave={() => {
+          setActiveNav(null);
+          setActiveSubDropdown(null);
+        }}
+      >
+        <div className="w-full px-5 md:px-8 lg:px-12 py-4 md:py-[25px] grid grid-cols-[1fr_auto_1fr] items-center">
+          {/* Mobile Left Hamburger / Desktop Left Logo */}
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden p-1 -ml-1 text-black cursor-pointer"
+              aria-label="Open navigation menu"
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 33 32"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <line y1="1" x2="33" y2="1" stroke="black" strokeWidth="2" />
+                <line
+                  y1="15.5714"
+                  x2="33"
+                  y2="15.5714"
+                  stroke="black"
+                  strokeWidth="2"
+                />
+                <line y1="31" x2="33" y2="31" stroke="black" strokeWidth="2" />
+              </svg>
+            </button>
+
+            <a
+              href="#"
+              className="hidden lg:inline-block shrink-0"
+              aria-label="Kelme España"
+            >
+              <img
+                src={KELME_LOGO_URL}
+                alt="Kelme España"
+                width={140}
+                height={17}
+                className="w-[140px] h-auto block"
+              />
+            </a>
+          </div>
+
+          {/* Mobile Center Logo / Desktop Center Primary Navigation */}
+          <div className="flex items-center justify-center">
+            <a
+              href="#"
+              className="lg:hidden inline-block shrink-0"
+              aria-label="Kelme España"
+            >
+              <img
+                src={KELME_LOGO_URL}
+                alt="Kelme España"
+                width={105}
+                height={13}
+                className="w-[105px] sm:w-[130px] h-auto block"
+              />
+            </a>
+
+            <nav
+              className="hidden lg:flex items-center gap-8 xl:gap-10"
+              aria-label="Primary navigation"
+            >
+              {KELME_NAV_ITEMS.map((item) => {
+                const isOpen = activeNav === item.title;
+                const useBottomBar = item.type !== 'dropdown';
+                return (
+                  <div
+                    key={item.title}
+                    className="relative"
+                    onMouseEnter={() => {
+                      setActiveNav(item.title);
+                      setActiveSubDropdown(null);
+                    }}
+                  >
+                    <a
+                      href={item.href}
+                      className={`kelme-heading text-[15px] text-[#231f20] py-1.5 block whitespace-nowrap ${
+                        useBottomBar
+                          ? `kelme-nav-underline ${isOpen ? 'is-active' : ''}`
+                          : 'hover:opacity-70 transition-opacity'
+                      }`}
                     >
-                      <span>ყიდვა ახლავე</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={navigateToTeam}
-                      className="h-13 px-7 rounded-full border-2 border-[#111214] text-[#111214] hover:bg-[#111214] hover:text-white font-bold text-sm inline-flex items-center gap-2 transition-colors cursor-pointer"
-                    >
-                      <span>გუნდური ფორმები (კლუბებს)</span>
-                    </button>
-                  </div>
-                </div>
+                      {item.title}
+                    </a>
 
-                {/* Right Hero Art with Cutout Shoe & Price Tag */}
-                <div
-                  onClick={() =>
-                    heroRetrobasket && navigateToProduct(heroRetrobasket.id)
-                  }
-                  className="relative min-h-[320px] sm:min-h-[420px] flex items-center justify-center cursor-pointer group"
-                >
-                  <div className="w-[270px] sm:w-[390px] aspect-square rounded-full bg-[#D7141E] transition-transform duration-500 group-hover:scale-105" />
-                  {/* LCP Candidate Image with fetchPriority="high" (Modern Web Guidance: optimize-image-priority) */}
-                  <img
-                    src="/cut/17500-73.webp"
-                    alt="KELME Retrobasket"
-                    fetchPriority="high"
-                    width={560}
-                    height={560}
-                    className="absolute w-[88%] max-w-[520px] -rotate-12 drop-shadow-[0_28px_28px_rgba(0,0,0,0.28)] transition-transform duration-500 group-hover:-rotate-8 group-hover:scale-105"
-                  />
-                  {heroRetrobasket && (
-                    <div className="absolute left-2 sm:left-6 bottom-4 bg-white rounded-2xl px-4 py-3 shadow-xl border border-[#E6E6E3]">
-                      <div className="text-xs text-[#6B6F76] font-semibold">
-                        {heroRetrobasket.model} · ყოველდღიური
-                      </div>
-                      <div className="flex items-baseline gap-2 mt-0.5">
-                        <strong className="font-black text-xl text-[#D7141E]">
-                          {formatMoney(heroRetrobasket.sale)}
-                        </strong>
-                        <del className="text-xs text-[#6B6F76]">
-                          {formatMoney(heroRetrobasket.price)}
-                        </del>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
+                    {/* Animated Dropdown menu for Kids & Official Products */}
+                    {item.type === 'dropdown' && isOpen && item.groups && (
+                      <div className="absolute left-0 top-full pt-3 z-50">
+                        <ul className="kelme-dropdown-enter bg-white border-x border-b border-[#deddde] py-4 min-w-[235px] shadow-md">
+                          {item.groups.map((grp, grpIdx) => {
+                            const subOpen = activeSubDropdown === grp.title;
+                            return (
+                              <li
+                                key={grp.title}
+                                className="relative kelme-mega-col-enter"
+                                style={{ animationDelay: `${grpIdx * 0.08}s` }}
+                                onMouseEnter={() => setActiveSubDropdown(grp.title)}
+                              >
+                                <a
+                                  href={grp.href}
+                                  className="flex items-center justify-between gap-4 px-6 py-2 text-[15px] text-[#231f20] hover:text-[#231f20]/65 transition-colors"
+                                >
+                                  <span>{grp.title}</span>
+                                  <svg
+                                    aria-hidden="true"
+                                    focusable="false"
+                                    fill="none"
+                                    width="8"
+                                    viewBox="0 0 16 18"
+                                  >
+                                    <path
+                                      d="m5 17 8-8-8-8"
+                                      stroke="currentColor"
+                                      strokeLinecap="square"
+                                    />
+                                  </svg>
+                                </a>
 
-            {/* Category Showcase Tiles */}
-            <section className="py-14 max-w-[1380px] mx-auto px-4 sm:px-8">
-              <div className="flex items-end justify-between mb-6 gap-4">
-                <div>
-                  <div className="text-xs font-extrabold uppercase tracking-wider text-[#6B6F76]">
-                    კატალოგი
+                                {subOpen && grp.links.length > 0 && (
+                                  <ul className="kelme-mega-menu-enter absolute left-full -top-4 bg-white border border-[#deddde] py-4 min-w-[260px] shadow-md">
+                                    {grp.links.map((subLink, sIdx) => (
+                                      <li
+                                        key={subLink.label}
+                                        className="kelme-mega-col-enter"
+                                        style={{
+                                          animationDelay: `${sIdx * 0.04}s`,
+                                        }}
+                                      >
+                                        <a
+                                          href={subLink.href}
+                                          onClick={() => setActiveNav(null)}
+                                          className="block px-6 py-2 text-[15px] text-[#231f20] hover:text-[#231f20]/65 transition-colors"
+                                        >
+                                          {subLink.label}
+                                        </a>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
                   </div>
-                  <h2 className="font-black text-2xl sm:text-3xl text-[#111214] mt-0.5">
-                    აირჩიე კატეგორია
-                  </h2>
-                </div>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* Right Secondary Navigation (Country, Language, Account, Search, Cart) */}
+          <div className="flex items-center justify-end gap-4 sm:gap-6">
+            <div className="hidden xl:flex items-center gap-5">
+              {/* Country Selector */}
+              <div className="relative">
                 <button
                   type="button"
-                  onClick={() => navigateToCategory('all')}
-                  className="text-sm font-bold border-b-2 border-[#111214] pb-0.5 hover:text-[#D7141E] hover:border-[#D7141E] transition-colors"
+                  onClick={() => {
+                    setCountryPopoverOpen((v) => !v);
+                    setLangPopoverOpen(false);
+                  }}
+                  className="kelme-heading text-[12px] text-[#231f20] hover:opacity-70 flex items-center gap-2 cursor-pointer transition-opacity"
                 >
-                  ყველა მოდელი ({products.length})
+                  <img
+                    src={selectedCountry.flag}
+                    alt={selectedCountry.name}
+                    width={20}
+                    height={15}
+                    className="w-5 h-[15px] object-cover rounded-[1px]"
+                  />
+                  <span>
+                    {selectedCountry.name} ({selectedCountry.currency})
+                  </span>
+                  <svg
+                    aria-hidden="true"
+                    focusable="false"
+                    fill="none"
+                    width="10"
+                    viewBox="0 0 10 10"
+                  >
+                    <path
+                      d="m1 3 4 4 4-4"
+                      stroke="currentColor"
+                      strokeLinecap="square"
+                    />
+                  </svg>
+                </button>
+
+                {countryPopoverOpen && (
+                  <div className="kelme-mega-menu-enter absolute right-0 top-full mt-3 bg-white border border-[#d9d9d9] shadow-lg py-2 w-56 z-50">
+                    {COUNTRIES_LIST.map((c) => (
+                      <button
+                        key={c.code}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCountry(c);
+                          setCountryPopoverOpen(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-[14px] text-black/65 hover:text-black transition-colors flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <img
+                          src={c.flag}
+                          alt={c.name}
+                          width={20}
+                          height={15}
+                          className="w-5 h-[15px] object-cover"
+                        />
+                        <span>
+                          {c.name} ({c.currency})
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Language Selector */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLangPopoverOpen((v) => !v);
+                    setCountryPopoverOpen(false);
+                  }}
+                  className="kelme-heading text-[12px] text-[#231f20] hover:opacity-70 flex items-center gap-1.5 cursor-pointer transition-opacity"
+                >
+                  <span>{selectedLanguage}</span>
+                  <svg
+                    aria-hidden="true"
+                    focusable="false"
+                    fill="none"
+                    width="10"
+                    viewBox="0 0 10 10"
+                  >
+                    <path
+                      d="m1 3 4 4 4-4"
+                      stroke="currentColor"
+                      strokeLinecap="square"
+                    />
+                  </svg>
+                </button>
+
+                {langPopoverOpen && (
+                  <div className="kelme-mega-menu-enter absolute right-0 top-full mt-3 bg-white border border-[#d9d9d9] shadow-lg py-2 w-36 z-50">
+                    {LANGUAGES_LIST.map((lang) => (
+                      <button
+                        key={lang}
+                        type="button"
+                        onClick={() => {
+                          setSelectedLanguage(lang);
+                          setLangPopoverOpen(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-[14px] text-black/65 hover:text-black transition-colors cursor-pointer"
+                      >
+                        {lang}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Account Icon */}
+            <button
+              type="button"
+              onClick={() => setAccountOpen(true)}
+              className="hidden sm:inline-flex items-center justify-center hover:opacity-70 transition-opacity cursor-pointer"
+              aria-label="Open account page"
+            >
+              <svg
+                width="23"
+                height="25"
+                viewBox="0 0 38 40"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M24.089 20.747C27.6 18.909 30 15.238 30 11C30 4.925 25.075 0 19 0C12.925 0 8 4.925 8 11C8 15.238 10.4 18.909 13.911 20.747C5.89 23.09 0 30.809 0 40H38C38 30.809 32.11 23.09 24.089 20.747ZM10 11C10 6.037 14.037 2 19 2C23.963 2 28 6.037 28 11C28 15.963 23.963 20 19 20C14.037 20 10 15.963 10 11ZM19 22C27.735 22 34.953 29.013 35.896 38H2.104C3.047 29.013 10.265 22 19 22Z"
+                  fill="black"
+                />
+              </svg>
+            </button>
+
+            {/* Search Icon */}
+            <button
+              type="button"
+              onClick={() => setSearchOpen(true)}
+              className="inline-flex items-center justify-center hover:opacity-70 transition-opacity cursor-pointer"
+              aria-label="Open search"
+            >
+              <svg
+                width="25"
+                height="25"
+                viewBox="0 0 38 38"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M14 28C17.506 28 20.703 26.702 23.159 24.573L36 37.414L37.414 36L24.573 23.159C26.702 20.703 28 17.506 28 14C28 6.268 21.732 0 14 0C6.268 0 0 6.268 0 14C0 21.732 6.268 28 14 28ZM14 2C20.617 2 26 7.383 26 14C26 20.617 20.617 26 14 26C7.383 26 2 20.617 2 14C2 7.383 7.383 2 14 2Z"
+                  fill="black"
+                />
+              </svg>
+            </button>
+
+            {/* Cart Icon */}
+            <button
+              type="button"
+              onClick={() => setCartOpen(true)}
+              className="relative inline-flex items-center justify-center hover:opacity-70 transition-opacity cursor-pointer"
+              aria-label="Open cart"
+            >
+              <svg
+                width="30"
+                height="30"
+                viewBox="0 0 48 48"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M40 12H30V8C30 5.8 28.2 4 26 4H22C19.8 4 18 5.8 18 8V12H8V44H40V12ZM38 42H10V14H38V42ZM20 8C20 6.897 20.897 6 22 6H26C27.103 6 28 6.897 28 8V12H20V8Z"
+                  fill="black"
+                />
+              </svg>
+              {totalCartItems > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#ed1c24] text-white text-[10px] font-bold flex items-center justify-center">
+                  {totalCartItems}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Full-Width Staggered Mega Menu for Man & Women */}
+        {KELME_NAV_ITEMS.map((item) => {
+          if (item.type !== 'mega' || activeNav !== item.title || !item.columns)
+            return null;
+          return (
+            <div
+              key={item.title}
+              className="kelme-mega-menu-enter hidden lg:flex w-full bg-white text-[#231f20] border-t border-[#deddde]/60 shadow-md py-10 px-12 justify-center z-50 absolute left-0 top-full"
+            >
+              <ul className="flex flex-wrap gap-x-24 gap-y-10 max-w-[1360px]">
+                {item.columns.map((col, colIdx) => (
+                  <li
+                    key={col.title}
+                    className="kelme-mega-col-enter flex flex-col items-start gap-5 max-w-[260px]"
+                    style={{ animationDelay: `${colIdx * 0.08}s` }}
+                  >
+                    <a
+                      href={col.href}
+                      onClick={() => setActiveNav(null)}
+                      className="font-bold text-[17px] text-[#231f20] hover:opacity-70 transition-opacity"
+                    >
+                      {col.title}
+                    </a>
+                    {col.links.length > 0 && (
+                      <ul className="flex flex-col gap-2.5">
+                        {col.links.map((lnk) => (
+                          <li key={lnk.label}>
+                            <a
+                              href={lnk.href}
+                              onClick={() => setActiveNav(null)}
+                              className="text-[16px] text-[#231f20]/65 hover:text-[#231f20] transition-colors duration-200"
+                            >
+                              {lnk.label}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </header>
+
+      {/* =====================================================================
+          SECTION 2: BLACK ANNOUNCEMENT BAR (shopify-section--announcement-bar)
+         ===================================================================== */}
+      <aside className="bg-black text-white w-full py-3 px-4 md:px-12 flex items-center justify-center gap-4 md:gap-10 overflow-hidden">
+        <button
+          type="button"
+          onClick={() =>
+            setAnnouncementIdx(
+              (prev) =>
+                (prev - 1 + ANNOUNCEMENT_MESSAGES.length) %
+                ANNOUNCEMENT_MESSAGES.length
+            )
+          }
+          className="p-1 text-white/80 hover:text-white transition-colors cursor-pointer"
+          aria-label="Previous"
+        >
+          <svg
+            aria-hidden="true"
+            focusable="false"
+            fill="none"
+            width="12"
+            viewBox="0 0 16 18"
+          >
+            <path
+              d="M11 1 3 9l8 8"
+              stroke="currentColor"
+              strokeLinecap="square"
+            />
+          </svg>
+        </button>
+
+        <div className="max-w-[35rem] flex-1 text-center overflow-hidden">
+          <p
+            key={announcementIdx}
+            className="kelme-heading kelme-announcement-animate text-[10px] lg:text-[13px] tracking-[-0.04em] text-white"
+          >
+            {ANNOUNCEMENT_MESSAGES[announcementIdx]}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            setAnnouncementIdx(
+              (prev) => (prev + 1) % ANNOUNCEMENT_MESSAGES.length
+            )
+          }
+          className="p-1 text-white/80 hover:text-white transition-colors cursor-pointer"
+          aria-label="Next"
+        >
+          <svg
+            aria-hidden="true"
+            focusable="false"
+            fill="none"
+            width="12"
+            viewBox="0 0 16 18"
+          >
+            <path
+              d="m5 17 8-8-8-8"
+              stroke="currentColor"
+              strokeLinecap="square"
+            />
+          </svg>
+        </button>
+      </aside>
+
+      {/* =====================================================================
+          MAIN CONTENT
+         ===================================================================== */}
+      <main id="main" className="flex-1">
+        {/* ===================================================================
+            SECTION 3: FULL-WIDTH HERO SLIDESHOW (shopify-section--slideshow)
+           =================================================================== */}
+        <section className="relative w-full bg-black overflow-hidden">
+          <div className="relative w-full">
+            {HERO_SLIDES.map((slide, idx) => {
+              const isSelected = idx === heroIdx;
+              if (!isSelected) return null;
+              return (
+                <div
+                  key={`${slide.id}-${heroIdx}`}
+                  className="relative w-full overflow-hidden"
+                >
+                  <picture className="block w-full overflow-hidden">
+                    <source
+                      media="(max-width: 699px)"
+                      srcSet={slide.mobileImg}
+                    />
+                    <img
+                      src={slide.desktopImg}
+                      alt={slide.title}
+                      className="kelme-slide-active-img w-full h-[68vh] sm:h-[62vw] lg:h-[calc(100vw*1200/3200)] min-h-[440px] max-h-[760px] object-cover block"
+                      loading={idx === 0 ? 'eager' : 'lazy'}
+                    />
+                  </picture>
+
+                  {/* Gradient overlay */}
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{ background: slide.gradient }}
+                  />
+
+                  {/* Staggered Slide Text (.prose) & Button (.button-group) */}
+                  <div
+                    className={`absolute inset-0 px-6 md:px-16 py-14 flex ${
+                      slide.align === 'bottom-center'
+                        ? 'items-end justify-center text-center pb-16 sm:pb-20'
+                        : slide.align === 'center-end'
+                          ? 'items-end sm:items-center justify-center sm:justify-end text-center sm:text-right pb-16 sm:pb-0'
+                          : 'items-center justify-center text-center'
+                    }`}
+                  >
+                    <div className="max-w-[780px] text-white flex flex-col gap-3 sm:gap-4">
+                      <div className="kelme-slide-active-prose flex flex-col gap-3">
+                        <h2 className="kelme-heading text-[30px] sm:text-[42px] lg:text-[46px] leading-[1.05] text-white drop-shadow-xs">
+                          {slide.title}
+                        </h2>
+                        {slide.subtitle && (
+                          <p className="text-[16px] sm:text-[19px] text-white font-normal">
+                            {slide.subtitle}
+                          </p>
+                        )}
+                      </div>
+
+                      <div
+                        className={`kelme-slide-active-btn mt-2 flex ${
+                          slide.align === 'center-end'
+                            ? 'justify-center sm:justify-end'
+                            : 'justify-center'
+                        }`}
+                      >
+                        <a
+                          href={slide.buttonHref}
+                          className="kelme-pill-btn kelme-pill-btn-hero"
+                          style={
+                            {
+                              '--btn-bg': slide.buttonBg,
+                              '--btn-text': slide.buttonTextColor,
+                              '--btn-outline': slide.buttonBg,
+                            } as React.CSSProperties
+                          }
+                        >
+                          {slide.buttonText}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Circular Autoplay Progress Page Dots (page-dots--autoplay) */}
+            <div className="absolute bottom-5 right-1/2 translate-x-1/2 md:right-12 md:translate-x-0 z-20 flex items-center gap-4">
+              {HERO_SLIDES.map((s, idx) => {
+                const active = idx === heroIdx;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setHeroIdx(idx)}
+                    aria-label={`Go to item ${idx + 1}`}
+                    aria-current={active}
+                    className="relative w-3 h-3 flex items-center justify-center text-white cursor-pointer"
+                  >
+                    {active ? (
+                      <svg
+                        key={`ring-${heroIdx}`}
+                        className="kelme-circular-progress w-3.5 h-3.5 block"
+                        viewBox="0 0 8 8"
+                      >
+                        <circle
+                          cx="50%"
+                          cy="50%"
+                          fill="none"
+                          strokeWidth="1.5"
+                          r="3.25"
+                          stroke="currentColor"
+                          strokeOpacity="0.25"
+                        />
+                        <circle
+                          className="progress-ring"
+                          cx="50%"
+                          cy="50%"
+                          fill="none"
+                          strokeWidth="1.5"
+                          r="3.25"
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    ) : (
+                      <span className="w-1.5 h-1.5 rounded-full bg-white/40 hover:bg-white/75 transition-colors block" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* ===================================================================
+            SECTION 4: FEATURED COLLECTION 1 ("ALL OUR FUTSAL" - Back to Sport)
+           =================================================================== */}
+        <section
+          id="featured-1"
+          ref={fc1SectionRef}
+          className="py-14 lg:py-24 w-full"
+        >
+          <div className="w-full px-5 md:px-8 lg:px-12 flex flex-col gap-8 lg:gap-12">
+            <div>
+              <h2 className="kelme-heading text-[24px] sm:text-[28px] lg:text-[31px] text-black">
+                ALL OUR FUTSAL
+              </h2>
+            </div>
+
+            {/* Product List Carousel with Staggered Scroll-Reveal & Floating Arrows */}
+            <div className="relative group/carousel">
+              <div
+                ref={fc1Ref}
+                className="grid grid-flow-col auto-cols-[72%] sm:auto-cols-[38%] lg:auto-cols-[calc((100%-72px)/4)] gap-5 lg:gap-6 overflow-x-auto snap-x snap-mandatory no-scrollbar"
+              >
+                {FEATURED_COLLECTION_1.map((product, idx) => (
+                  <div
+                    key={product.id}
+                    className={`group/card flex flex-col gap-4 snap-start ${
+                      fc1Revealed ? 'kelme-card-revealed' : 'kelme-card-hidden'
+                    }`}
+                    style={
+                      fc1Revealed
+                        ? { animationDelay: `${0.15 + idx * 0.05}s` }
+                        : undefined
+                    }
+                  >
+                    <div className="relative aspect-square w-full bg-white overflow-hidden">
+                      {/* Red Sale Badge */}
+                      <div className="absolute top-2 left-2 z-10">
+                        <span className="bg-[#ed1c24] text-white kelme-heading text-[11px] px-1.5 py-0.5 block leading-tight">
+                          {product.badge}
+                        </span>
+                      </div>
+
+                      {/* Primary + Secondary Hover Image (0.1s ease-in-out) */}
+                      <button
+                        type="button"
+                        onClick={() => openQuickBuy(product)}
+                        className="block w-full h-full relative cursor-pointer"
+                      >
+                        <img
+                          src={product.primaryImg}
+                          alt={product.title}
+                          loading="lazy"
+                          className="w-full h-full object-contain transition-opacity duration-100 ease-in-out group-hover/card:opacity-0"
+                        />
+                        <img
+                          src={product.secondaryImg}
+                          alt={product.title}
+                          loading="lazy"
+                          className="w-full h-full object-contain absolute inset-0 opacity-0 transition-opacity duration-100 ease-in-out group-hover/card:opacity-100"
+                        />
+                      </button>
+
+                      {/* Quick-Add Plus Button (rotates 90deg on hover) */}
+                      <button
+                        type="button"
+                        onClick={() => openQuickBuy(product)}
+                        aria-label="Choose options"
+                        className="kelme-quick-add-btn absolute bottom-2 left-1/2 z-10 cursor-pointer"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          focusable="false"
+                          fill="none"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 12 12"
+                        >
+                          <path
+                            d="M6 0v12M0 6h12"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* Product Card Info */}
+                    <div className="flex flex-col items-center text-center gap-1 px-1">
+                      <button
+                        type="button"
+                        onClick={() => openQuickBuy(product)}
+                        className="text-[15px] sm:text-[16px] leading-snug text-black hover:opacity-70 transition-opacity cursor-pointer"
+                      >
+                        {product.title}
+                      </button>
+                      <div className="flex items-center justify-center gap-2 text-[16px] mt-0.5">
+                        <span className="text-[#ed1c24]">
+                          {formatMoney(product.salePrice)}
+                        </span>
+                        <span className="text-black/60 line-through">
+                          {formatMoney(product.regularPrice)}
+                        </span>
+                      </div>
+                      <StarRating ratingStr={product.rating} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Floating Carousel Arrows with Inline Icon Fly-Through */}
+              <button
+                type="button"
+                onClick={() => scrollContainer(fc1Ref, 'prev')}
+                aria-label="Previous"
+                className="kelme-circle-btn kelme-circle-btn--prev hidden md:grid absolute left-6 top-[40%] -translate-y-1/2 z-20 cursor-pointer"
+              >
+                <svg
+                  aria-hidden="true"
+                  focusable="false"
+                  fill="none"
+                  width="16"
+                  viewBox="0 0 16 18"
+                >
+                  <path
+                    d="M11 1 3 9l8 8"
+                    stroke="currentColor"
+                    strokeLinecap="square"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollContainer(fc1Ref, 'next')}
+                aria-label="Next"
+                className="kelme-circle-btn kelme-circle-btn--next hidden md:grid absolute right-6 top-[40%] -translate-y-1/2 z-20 cursor-pointer"
+              >
+                <svg
+                  aria-hidden="true"
+                  focusable="false"
+                  fill="none"
+                  width="16"
+                  viewBox="0 0 16 18"
+                >
+                  <path
+                    d="m5 17 8-8-8-8"
+                    stroke="currentColor"
+                    strokeLinecap="square"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* See More Button */}
+            <div className="flex justify-center">
+              <a href="#featured-2" className="kelme-pill-btn">
+                See more
+              </a>
+            </div>
+          </div>
+        </section>
+
+        {/* ===================================================================
+            SECTION 5: FULL-WIDTH AUTOPLAY VIDEO (blocks_ciEzQH)
+           =================================================================== */}
+        <section className="w-full overflow-hidden bg-[#f4f4f4]">
+          <video
+            className="w-full h-auto block"
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="metadata"
+          >
+            <source src={KELME_PROMO_VIDEO_MP4} type="video/mp4" />
+          </video>
+        </section>
+
+        {/* ===================================================================
+            SECTION 6: MEDIA GRID ("IGNITE - NUEVO LANZAMIENTO")
+           =================================================================== */}
+        <section
+          id="media-grid"
+          ref={mediaGridSectionRef}
+          className="py-14 lg:py-24 w-full"
+        >
+          <div className="w-full px-5 md:px-8 lg:px-[30px] flex flex-col gap-8 lg:gap-12">
+            <div>
+              <h2 className="kelme-heading text-[24px] sm:text-[28px] lg:text-[31px] text-black">
+                Ignite - nuevo lanzamiento
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-[30px]">
+              {MEDIA_GRID_ITEMS.map((item, idx) => (
+                <a
+                  key={item.id}
+                  href={item.href}
+                  className={`group relative block h-[420px] sm:h-[480px] lg:h-[580px] overflow-hidden bg-black transition-opacity duration-500 ${
+                    mediaGridRevealed ? 'opacity-100' : 'opacity-0'
+                  }`}
+                  style={{ transitionDelay: `${idx * 0.08}s` }}
+                >
+                  <img
+                    src={item.img}
+                    alt={item.buttonText}
+                    loading="lazy"
+                    className="kelme-zoom-image w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/19 pointer-events-none" />
+                  <div className="absolute inset-0 p-6 sm:p-8 flex items-end justify-center text-center">
+                    <span
+                      className="kelme-pill-btn kelme-pill-btn-hero"
+                      style={
+                        {
+                          '--btn-bg': item.buttonBg,
+                          '--btn-text': item.buttonTextColor,
+                          '--btn-outline': item.buttonBg,
+                        } as React.CSSProperties
+                      }
+                    >
+                      {item.buttonText}
+                    </span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ===================================================================
+            SECTION 7: FEATURED COLLECTION 2 ("ALL OUR FUTSAL")
+           =================================================================== */}
+        <section
+          id="featured-2"
+          ref={fc2SectionRef}
+          className="py-10 lg:py-20 w-full"
+        >
+          <div className="w-full px-5 md:px-8 lg:px-12 flex flex-col gap-8 lg:gap-12">
+            <div>
+              <h2 className="kelme-heading text-[24px] sm:text-[28px] lg:text-[31px] text-black">
+                ALL OUR FUTSAL
+              </h2>
+            </div>
+
+            <div className="relative group/carousel">
+              <div
+                ref={fc2Ref}
+                className="grid grid-flow-col auto-cols-[72%] sm:auto-cols-[38%] lg:auto-cols-[calc((100%-72px)/4)] gap-5 lg:gap-6 overflow-x-auto snap-x snap-mandatory no-scrollbar"
+              >
+                {FEATURED_COLLECTION_2.map((product, idx) => (
+                  <div
+                    key={product.id}
+                    className={`group/card flex flex-col gap-4 snap-start ${
+                      fc2Revealed ? 'kelme-card-revealed' : 'kelme-card-hidden'
+                    }`}
+                    style={
+                      fc2Revealed
+                        ? { animationDelay: `${0.15 + idx * 0.05}s` }
+                        : undefined
+                    }
+                  >
+                    <div className="relative aspect-square w-full bg-white overflow-hidden">
+                      <div className="absolute top-2 left-2 z-10">
+                        <span className="bg-[#ed1c24] text-white kelme-heading text-[11px] px-1.5 py-0.5 block leading-tight">
+                          {product.badge}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => openQuickBuy(product)}
+                        className="block w-full h-full relative cursor-pointer"
+                      >
+                        <img
+                          src={product.primaryImg}
+                          alt={product.title}
+                          loading="lazy"
+                          className="w-full h-full object-contain transition-opacity duration-100 ease-in-out group-hover/card:opacity-0"
+                        />
+                        <img
+                          src={product.secondaryImg}
+                          alt={product.title}
+                          loading="lazy"
+                          className="w-full h-full object-contain absolute inset-0 opacity-0 transition-opacity duration-100 ease-in-out group-hover/card:opacity-100"
+                        />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => openQuickBuy(product)}
+                        aria-label="Choose options"
+                        className="kelme-quick-add-btn absolute bottom-2 left-1/2 z-10 cursor-pointer"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          focusable="false"
+                          fill="none"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 12 12"
+                        >
+                          <path
+                            d="M6 0v12M0 6h12"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col items-center text-center gap-1 px-1">
+                      <button
+                        type="button"
+                        onClick={() => openQuickBuy(product)}
+                        className="text-[15px] sm:text-[16px] leading-snug text-black hover:opacity-70 transition-opacity cursor-pointer"
+                      >
+                        {product.title}
+                      </button>
+                      <div className="flex items-center justify-center gap-2 text-[16px] mt-0.5">
+                        <span className="text-[#ed1c24]">
+                          {formatMoney(product.salePrice)}
+                        </span>
+                        <span className="text-black/60 line-through">
+                          {formatMoney(product.regularPrice)}
+                        </span>
+                      </div>
+                      <StarRating ratingStr={product.rating} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => scrollContainer(fc2Ref, 'prev')}
+                aria-label="Previous"
+                className="kelme-circle-btn kelme-circle-btn--prev hidden md:grid absolute left-6 top-[40%] -translate-y-1/2 z-20 cursor-pointer"
+              >
+                <svg
+                  aria-hidden="true"
+                  focusable="false"
+                  fill="none"
+                  width="16"
+                  viewBox="0 0 16 18"
+                >
+                  <path
+                    d="M11 1 3 9l8 8"
+                    stroke="currentColor"
+                    strokeLinecap="square"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollContainer(fc2Ref, 'next')}
+                aria-label="Next"
+                className="kelme-circle-btn kelme-circle-btn--next hidden md:grid absolute right-6 top-[40%] -translate-y-1/2 z-20 cursor-pointer"
+              >
+                <svg
+                  aria-hidden="true"
+                  focusable="false"
+                  fill="none"
+                  width="16"
+                  viewBox="0 0 16 18"
+                >
+                  <path
+                    d="m5 17 8-8-8-8"
+                    stroke="currentColor"
+                    strokeLinecap="square"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex justify-center">
+              <a href="#collections" className="kelme-pill-btn">
+                See more
+              </a>
+            </div>
+          </div>
+        </section>
+
+        {/* ===================================================================
+            SECTION 8: COLLECTION LIST CAROUSEL (Men's, Women's, Kids, etc.)
+           =================================================================== */}
+        <section id="collections" className="py-10 lg:py-16 w-full">
+          <div className="w-full px-5 md:px-8 lg:px-12">
+            <div className="relative group/carousel">
+              <div
+                ref={colListRef}
+                className="grid grid-flow-col auto-cols-[84vw] sm:auto-cols-[62vw] lg:auto-cols-[calc((100%-60px)/3)] gap-6 lg:gap-[30px] overflow-x-auto snap-x snap-mandatory no-scrollbar"
+              >
+                {COLLECTION_CARDS.map((card) => (
+                  <a
+                    key={card.id}
+                    href={card.href}
+                    className="group relative aspect-square w-full overflow-hidden snap-center block bg-neutral-100"
+                  >
+                    <img
+                      src={card.img}
+                      alt={card.title}
+                      loading="lazy"
+                      className="kelme-zoom-image w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 p-6 sm:p-8 flex items-end justify-start">
+                      <span className="kelme-pill-btn kelme-pill-btn-hero">
+                        {card.title}
+                      </span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => scrollContainer(colListRef, 'prev')}
+                aria-label="Previous"
+                className="kelme-circle-btn kelme-circle-btn--prev hidden md:grid absolute left-6 top-1/2 -translate-y-1/2 z-20 cursor-pointer"
+              >
+                <svg
+                  aria-hidden="true"
+                  focusable="false"
+                  fill="none"
+                  width="16"
+                  viewBox="0 0 16 18"
+                >
+                  <path
+                    d="M11 1 3 9l8 8"
+                    stroke="currentColor"
+                    strokeLinecap="square"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollContainer(colListRef, 'next')}
+                aria-label="Next"
+                className="kelme-circle-btn kelme-circle-btn--next hidden md:grid absolute right-6 top-1/2 -translate-y-1/2 z-20 cursor-pointer"
+              >
+                <svg
+                  aria-hidden="true"
+                  focusable="false"
+                  fill="none"
+                  width="16"
+                  viewBox="0 0 16 18"
+                >
+                  <path
+                    d="m5 17 8-8-8-8"
+                    stroke="currentColor"
+                    strokeLinecap="square"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* ===================================================================
+            SECTION 9: JUDGE.ME STORE SUMMARY & MEDALS (bordered-section)
+           =================================================================== */}
+        <section className="py-12 lg:py-16 border-t border-[#d9d9d9] w-full">
+          <div className="max-w-[1100px] mx-auto px-5 md:px-8">
+            <div className="bg-[#f9f9f9] rounded-xl p-6 sm:p-10 flex flex-col items-center text-center gap-6">
+              <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <div className="text-[44px] font-bold leading-none text-black">
+                    {JUDGEME_SUMMARY.averageRating}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {[0, 1, 2, 3, 4].map((s) => (
+                      <svg
+                        key={s}
+                        width="18"
+                        height="17"
+                        viewBox="0 0 12 11"
+                        fill="#000000"
+                      >
+                        <path d="M6 0v8.635L2.292 11 3.48 6.87 0 4.202l4.443-.187L6 0Zm0 0v8.635L9.708 11 8.52 6.87 12 4.202l-4.443-.187L6 0Z" />
+                      </svg>
+                    ))}
+                  </div>
+                  <p className="text-[14px] text-[#787878]">
+                    Based on {JUDGEME_SUMMARY.numberOfReviews.toLocaleString()}{' '}
+                    reviews
+                  </p>
+                </div>
+
+                {/* Histogram */}
+                <div className="flex flex-col gap-2 w-full max-w-sm mx-auto">
+                  {JUDGEME_SUMMARY.histogram.map((row) => (
+                    <div
+                      key={row.rating}
+                      className="flex items-center gap-3 text-[13px]"
+                    >
+                      <span className="w-8 text-right font-medium">
+                        {row.rating} ★
+                      </span>
+                      <div className="flex-1 h-2.5 bg-black/10 overflow-hidden">
+                        <div
+                          className="h-full bg-black transition-all duration-700"
+                          style={{ width: `${row.percentage}%` }}
+                        />
+                      </div>
+                      <span className="w-10 text-left text-[#787878]">
+                        {row.percentage}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Keywords */}
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {JUDGEME_SUMMARY.keywords.map((kw) => (
+                  <span
+                    key={kw}
+                    className="px-3 py-1 bg-white border border-black/10 rounded-full text-[13px] text-black flex items-center gap-1.5"
+                  >
+                    <span className="text-black font-bold">✓</span> {kw}
+                  </span>
+                ))}
+              </div>
+
+              {/* AI Summary Toggle Button */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowAiSummary((v) => !v)}
+                  className="px-5 py-2.5 rounded-lg bg-black text-white text-[14px] font-bold hover:opacity-85 transition-opacity cursor-pointer"
+                >
+                  Ver resumen de reseñas de IA
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {(Object.keys(CATEGORIES) as CategoryKey[]).map((catKey) => {
-                  const cat = CATEGORIES[catKey];
-                  const count = products.filter((p) => p.cat === catKey).length;
-                  return (
-                    <div
-                      key={catKey}
-                      onClick={() => navigateToCategory(catKey, true)}
-                      style={{ backgroundColor: cat.color }}
-                      className="group relative rounded-2xl aspect-[4/4.8] p-5 flex flex-col justify-end overflow-hidden cursor-pointer text-white shadow-sm"
+              {showAiSummary && (
+                <p className="kelme-mega-menu-enter max-w-2xl text-[15px] text-[#333333] leading-relaxed bg-white p-5 rounded-lg border border-black/10">
+                  {JUDGEME_SUMMARY.aiSummaryText}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ===================================================================
+            SECTION 10: BLOG POSTS (bordered-section — 3-Column News Grid)
+           =================================================================== */}
+        <section
+          id="blog"
+          className="py-14 lg:py-24 border-t border-[#d9d9d9] w-full"
+        >
+          <div className="max-w-[1260px] mx-auto px-5 md:px-8 lg:px-12 flex flex-col gap-10 lg:gap-12">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-10">
+              {BLOG_POSTS.map((post) => (
+                <article
+                  key={post.id}
+                  className="group flex flex-col gap-5 items-start"
+                >
+                  <a
+                    href={post.href}
+                    className="w-full aspect-square overflow-hidden block bg-neutral-100"
+                  >
+                    <img
+                      src={post.img}
+                      alt={post.title}
+                      loading="lazy"
+                      className="kelme-zoom-image w-full h-full object-cover"
+                    />
+                  </a>
+                  <div className="flex flex-col items-start gap-3">
+                    <a
+                      href={post.href}
+                      className="kelme-heading text-[11px] text-black/65 hover:text-black transition-colors duration-200"
                     >
-                      <img
-                        src={`/cut/${cat.heroProductId}.webp`}
-                        alt={cat.title}
-                        loading="lazy"
-                        width={420}
-                        height={420}
-                        className="absolute inset-x-4 top-[12%] w-[86%] mx-auto object-contain drop-shadow-[0_20px_20px_rgba(0,0,0,0.28)] -rotate-6 transition-transform duration-400 group-hover:scale-108 group-hover:-rotate-10"
-                      />
-                      <div className="relative z-10 flex items-end justify-between gap-2">
-                        <div>
-                          <h3 className="font-black text-lg sm:text-xl leading-tight">
-                            {cat.title}
-                          </h3>
-                          <span className="text-xs text-white/85 font-medium block mt-0.5">
-                            {cat.desc} · {count} მოდელი
-                          </span>
-                        </div>
-                        <span className="w-9 h-9 rounded-full bg-white text-[#111214] hidden sm:grid place-items-center font-black shrink-0 group-hover:translate-x-0.5 transition-transform">
-                          →
+                      {post.category}
+                    </a>
+                    <h3 className="kelme-heading text-[19px] lg:text-[22px] leading-tight text-black">
+                      <a
+                        href={post.href}
+                        className="hover:opacity-75 transition-opacity"
+                      >
+                        {post.title}
+                      </a>
+                    </h3>
+                    <p className="text-[16px] text-black/80 leading-relaxed">
+                      {post.excerpt}
+                    </p>
+                    <a
+                      href={post.href}
+                      className="kelme-link-underline text-[16px] text-black"
+                    >
+                      Read more
+                    </a>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="flex justify-center">
+              <a href="#blog" className="kelme-pill-btn">
+                See more
+              </a>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* =====================================================================
+          SECTION 11: FOOTER (shopify-section--footer)
+         ===================================================================== */}
+      <footer
+        id="footer"
+        className="bg-[#fafafa] text-[#231f20] pt-14 lg:pt-20 pb-12 w-full"
+      >
+        <div className="w-full px-5 md:px-8 lg:px-12 flex flex-col gap-12">
+          {/* Top 3-Column Block List */}
+          <div className="flex flex-col lg:flex-row justify-between items-start gap-10 lg:gap-12">
+            {/* Block 1: Newsletter */}
+            <div className="flex-1 max-w-md flex flex-col gap-4 sm:gap-5 w-full">
+              <p className="kelme-heading text-[16px] text-[#231f20]">
+                Newsletter
+              </p>
+              <p className="text-[16px] text-[#231f20]/70">
+                Sign up to receive our best offers and see the latest releases
+              </p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (newsletterEmail.trim()) {
+                    setNewsletterSubscribed(true);
+                    setNewsletterEmail('');
+                  }
+                }}
+                className="flex flex-col gap-5 w-full"
+              >
+                <input
+                  type="email"
+                  required
+                  value={newsletterEmail}
+                  onChange={(e) => setNewsletterEmail(e.target.value)}
+                  placeholder="E-mail"
+                  className="w-full border border-[#d9d9d9] bg-white px-3.5 py-2.5 text-[16px] text-black placeholder:text-black/50 focus:outline-none focus:border-black rounded-none transition-colors"
+                />
+                <div>
+                  <button type="submit" className="kelme-pill-btn">
+                    Subscribe
+                  </button>
+                </div>
+                {newsletterSubscribed && (
+                  <p className="kelme-mega-menu-enter text-[14px] text-[#307a07] font-medium">
+                    Thank you for subscribing to Kelme newsletter!
+                  </p>
+                )}
+              </form>
+            </div>
+
+            {/* Block 2: More information */}
+            <div className="flex flex-col gap-4 sm:gap-5 min-w-[180px]">
+              <p className="kelme-heading text-[16px] text-[#231f20]">
+                More information
+              </p>
+              <ul className="flex flex-col gap-2.5">
+                {FOOTER_INFO_LINKS.map((link) => (
+                  <li key={link.label}>
+                    <a
+                      href={link.href}
+                      className="text-[16px] text-[#231f20]/65 hover:text-[#231f20] transition-colors duration-200"
+                    >
+                      {link.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Block 3: ABOUT KELME */}
+            <div className="flex-1 max-w-lg flex flex-col gap-4 sm:gap-5">
+              <p className="kelme-heading text-[16px] text-[#231f20]">
+                ABOUT KELME
+              </p>
+              <p className="text-[16px] text-[#231f20]/70 leading-relaxed">
+                KELME is a Spanish sports equipment brand with over 60 years of
+                history. A leader in the world of indoor soccer and football, we
+                use the latest and greatest technologies dedicated to each sport
+                to offer durable, lightweight, and flexible footwear that
+                guarantees the best performance for all players.
+              </p>
+              <div className="pt-2">
+                <a
+                  href="#featured-1"
+                  className="inline-flex items-center gap-2 bg-[#5A31F4] text-white font-bold text-[14px] px-5 py-2.5 rounded-full hover:opacity-90 transition-opacity"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                  </svg>
+                  Follow on Shop
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Aside: Localization, Copyright, Payment Icons */}
+          <div className="flex flex-col items-center justify-center text-center gap-6 pt-4">
+            {/* Localization Selectors */}
+            <div className="flex items-center justify-center gap-6">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFooterCountryOpen((v) => !v);
+                    setFooterLangOpen(false);
+                  }}
+                  className="kelme-heading text-[12px] text-[#231f20]/65 hover:text-[#231f20] transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <img
+                    src={selectedCountry.flag}
+                    alt={selectedCountry.name}
+                    width={20}
+                    height={15}
+                    className="w-5 h-[15px] object-cover"
+                  />
+                  <span>
+                    {selectedCountry.name} ({selectedCountry.currency})
+                  </span>
+                  <svg
+                    aria-hidden="true"
+                    focusable="false"
+                    fill="none"
+                    width="10"
+                    viewBox="0 0 10 10"
+                  >
+                    <path
+                      d="m1 3 4 4 4-4"
+                      stroke="currentColor"
+                      strokeLinecap="square"
+                    />
+                  </svg>
+                </button>
+
+                {footerCountryOpen && (
+                  <div className="kelme-mega-menu-enter absolute left-0 bottom-full mb-2 bg-white border border-[#d9d9d9] shadow-lg py-2 w-56 z-50">
+                    {COUNTRIES_LIST.map((c) => (
+                      <button
+                        key={c.code}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCountry(c);
+                          setFooterCountryOpen(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-[14px] text-black/65 hover:text-black transition-colors flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <img
+                          src={c.flag}
+                          alt={c.name}
+                          width={20}
+                          height={15}
+                          className="w-5 h-[15px] object-cover"
+                        />
+                        <span>
+                          {c.name} ({c.currency})
                         </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFooterLangOpen((v) => !v);
+                    setFooterCountryOpen(false);
+                  }}
+                  className="kelme-heading text-[12px] text-[#231f20]/65 hover:text-[#231f20] transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>{selectedLanguage}</span>
+                  <svg
+                    aria-hidden="true"
+                    focusable="false"
+                    fill="none"
+                    width="10"
+                    viewBox="0 0 10 10"
+                  >
+                    <path
+                      d="m1 3 4 4 4-4"
+                      stroke="currentColor"
+                      strokeLinecap="square"
+                    />
+                  </svg>
+                </button>
+
+                {footerLangOpen && (
+                  <div className="kelme-mega-menu-enter absolute left-0 bottom-full mb-2 bg-white border border-[#d9d9d9] shadow-lg py-2 w-36 z-50">
+                    {LANGUAGES_LIST.map((lang) => (
+                      <button
+                        key={lang}
+                        type="button"
+                        onClick={() => {
+                          setSelectedLanguage(lang);
+                          setFooterLangOpen(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-[14px] text-black/65 hover:text-black transition-colors cursor-pointer"
+                      >
+                        {lang}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Copyright */}
+            <p className="kelme-heading text-[12px] text-[#231f20]/65">
+              © 2026 - Kelme España
+            </p>
+
+            {/* Payment Method Icons Row */}
+            <div className="flex flex-wrap items-center justify-center gap-2 max-w-[30rem]">
+              {/* American Express */}
+              <svg width="38" height="24" viewBox="0 0 38 24" fill="none">
+                <rect width="38" height="24" rx="3" fill="#0071CE" />
+                <text
+                  x="19"
+                  y="15"
+                  textAnchor="middle"
+                  fill="#fff"
+                  fontSize="7"
+                  fontWeight="700"
+                >
+                  AMEX
+                </text>
+              </svg>
+              {/* Apple Pay */}
+              <svg width="38" height="24" viewBox="0 0 38 24" fill="none">
+                <rect
+                  x=".5"
+                  y=".5"
+                  width="37"
+                  height="23"
+                  rx="2.5"
+                  fill="#fff"
+                  stroke="#e5e5e5"
+                />
+                <text
+                  x="19"
+                  y="15"
+                  textAnchor="middle"
+                  fill="#000"
+                  fontSize="7.5"
+                  fontWeight="700"
+                >
+                  Pay
+                </text>
+              </svg>
+              {/* Google Pay */}
+              <svg width="38" height="24" viewBox="0 0 38 24" fill="none">
+                <rect
+                  x=".5"
+                  y=".5"
+                  width="37"
+                  height="23"
+                  rx="2.5"
+                  fill="#fff"
+                  stroke="#e5e5e5"
+                />
+                <text
+                  x="19"
+                  y="15"
+                  textAnchor="middle"
+                  fill="#4285F4"
+                  fontSize="7.5"
+                  fontWeight="700"
+                >
+                  G Pay
+                </text>
+              </svg>
+              {/* Klarna */}
+              <svg width="38" height="24" viewBox="0 0 38 24" fill="none">
+                <rect width="38" height="24" rx="3" fill="#FFA8CD" />
+                <text
+                  x="19"
+                  y="15"
+                  textAnchor="middle"
+                  fill="#0B051D"
+                  fontSize="7.5"
+                  fontWeight="800"
+                >
+                  Klarna.
+                </text>
+              </svg>
+              {/* Maestro */}
+              <svg width="38" height="24" viewBox="0 0 38 24" fill="none">
+                <rect
+                  x=".5"
+                  y=".5"
+                  width="37"
+                  height="23"
+                  rx="2.5"
+                  fill="#fff"
+                  stroke="#e5e5e5"
+                />
+                <circle cx="15" cy="12" r="6.5" fill="#EB001B" />
+                <circle
+                  cx="23"
+                  cy="12"
+                  r="6.5"
+                  fill="#00A2E5"
+                  fillOpacity="0.85"
+                />
+              </svg>
+              {/* Mastercard */}
+              <svg width="38" height="24" viewBox="0 0 38 24" fill="none">
+                <rect width="38" height="24" rx="3" fill="#232323" />
+                <circle cx="15" cy="12" r="6.5" fill="#EB001B" />
+                <circle
+                  cx="23"
+                  cy="12"
+                  r="6.5"
+                  fill="#F79E1B"
+                  fillOpacity="0.9"
+                />
+              </svg>
+              {/* PayPal */}
+              <svg width="38" height="24" viewBox="0 0 38 24" fill="none">
+                <rect
+                  x=".5"
+                  y=".5"
+                  width="37"
+                  height="23"
+                  rx="2.5"
+                  fill="#fff"
+                  stroke="#e5e5e5"
+                />
+                <text
+                  x="19"
+                  y="15"
+                  textAnchor="middle"
+                  fill="#003087"
+                  fontSize="7.5"
+                  fontWeight="800"
+                >
+                  PayPal
+                </text>
+              </svg>
+              {/* Shop Pay */}
+              <svg width="38" height="24" viewBox="0 0 38 24" fill="none">
+                <rect width="38" height="24" rx="3" fill="#5A31F4" />
+                <text
+                  x="19"
+                  y="15"
+                  textAnchor="middle"
+                  fill="#fff"
+                  fontSize="7.5"
+                  fontWeight="700"
+                >
+                  shop
+                </text>
+              </svg>
+              {/* Visa */}
+              <svg width="38" height="24" viewBox="0 0 38 24" fill="none">
+                <rect width="38" height="24" rx="3" fill="#142FBD" />
+                <text
+                  x="19"
+                  y="15"
+                  textAnchor="middle"
+                  fill="#fff"
+                  fontSize="8.5"
+                  fontWeight="800"
+                  fontStyle="italic"
+                >
+                  VISA
+                </text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      {/* =====================================================================
+          ANIMATED INTERACTIVE OVERLAYS:
+          1. Mobile Sidebar Navigation Drawer (.kelme-drawer-left)
+          2. Cart Drawer (.kelme-drawer-right)
+          3. Search Drawer (.kelme-mega-menu-enter)
+          4. Quick Buy Product Modal (.kelme-modal-pop)
+          5. Account Modal (.kelme-modal-pop)
+         ===================================================================== */}
+
+      {/* 1. MOBILE SIDEBAR MENU DRAWER */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 flex">
+          <div
+            className="kelme-overlay-fade fixed inset-0 bg-black/40"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="kelme-drawer-left relative z-10 w-[85vw] max-w-[380px] bg-white h-full flex flex-col justify-between p-6 overflow-y-auto">
+            <div className="flex flex-col gap-6">
+              <div className="flex items-center justify-between border-b border-[#d9d9d9] pb-4">
+                <img
+                  src={KELME_LOGO_URL}
+                  alt="Kelme"
+                  className="w-[110px] h-auto"
+                />
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-2 text-black opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
+                  aria-label="Close menu"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <ul className="flex flex-col divide-y divide-[#d9d9d9]/60">
+                {KELME_NAV_ITEMS.map((item, idx) => {
+                  const hasChildren =
+                    (item.columns && item.columns.length > 0) ||
+                    (item.groups && item.groups.length > 0);
+                  const expanded = mobileExpandedItem === item.title;
+                  return (
+                    <li
+                      key={item.title}
+                      className="py-3.5 kelme-mega-col-enter"
+                      style={{ animationDelay: `${idx * 0.06}s` }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <a
+                          href={item.href}
+                          onClick={() => !hasChildren && setMobileMenuOpen(false)}
+                          className="kelme-heading text-[18px] text-[#231f20]"
+                        >
+                          {item.title}
+                        </a>
+                        {hasChildren && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMobileExpandedItem(expanded ? null : item.title)
+                            }
+                            className="p-1 text-black cursor-pointer"
+                          >
+                            {expanded ? '−' : '+'}
+                          </button>
+                        )}
                       </div>
-                    </div>
+
+                      {expanded && item.columns && (
+                        <div className="kelme-mega-menu-enter mt-3 pl-3 flex flex-col gap-4">
+                          {item.columns.map((col) => (
+                            <div key={col.title} className="flex flex-col gap-1.5">
+                              <a
+                                href={col.href}
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="font-bold text-[15px] text-black"
+                              >
+                                {col.title}
+                              </a>
+                              {col.links.map((l) => (
+                                <a
+                                  key={l.label}
+                                  href={l.href}
+                                  onClick={() => setMobileMenuOpen(false)}
+                                  className="text-[14px] text-black/65 pl-2"
+                                >
+                                  {l.label}
+                                </a>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {expanded && item.groups && (
+                        <div className="kelme-mega-menu-enter mt-3 pl-3 flex flex-col gap-4">
+                          {item.groups.map((grp) => (
+                            <div key={grp.title} className="flex flex-col gap-1.5">
+                              <a
+                                href={grp.href}
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="font-bold text-[15px] text-black"
+                              >
+                                {grp.title}
+                              </a>
+                              {grp.links.map((l) => (
+                                <a
+                                  key={l.label}
+                                  href={l.href}
+                                  onClick={() => setMobileMenuOpen(false)}
+                                  className="text-[14px] text-black/65 pl-2"
+                                >
+                                  {l.label}
+                                </a>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </li>
                   );
                 })}
-              </div>
-            </section>
+              </ul>
+            </div>
 
-            {/* Main Interactive Shop Grid */}
-            <section
-              id="shop-catalog"
-              className="py-6 max-w-[1380px] mx-auto px-4 sm:px-8"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-4">
-                <h2 className="font-black text-2xl sm:text-3xl text-[#111214]">
-                  {activeCategory === 'all'
-                    ? 'ყველა ფეხსაცმელი'
-                    : activeCategory === 'sale'
-                      ? 'ფასდაკლება (Outlet)'
-                      : CATEGORIES[activeCategory]?.title}
-                </h2>
-                <div className="text-xs font-semibold text-[#6B6F76]">
-                  ნაჩვენებია {filteredProducts.length} მოდელი
-                  {selectedSizeFilter ? ` · ზომა EU ${selectedSizeFilter}` : ''}
-                </div>
-              </div>
+            <div className="pt-6 border-t border-[#d9d9d9] flex items-center justify-between text-[13px] kelme-heading">
+              <span>
+                {selectedCountry.name} ({selectedCountry.currency})
+              </span>
+              <span>{selectedLanguage}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
-              {/* Sticky Filter & Sort Toolbar */}
-              <div className="sticky top-[68px] z-20 bg-white/95 backdrop-blur-md py-3 border-b border-[#E6E6E3] mb-6 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-                  {filterChips.map((chip) => (
-                    <button
-                      key={chip.key}
-                      type="button"
-                      onClick={() => {
-                        setSelectedSizeFilter('');
-                        navigateToCategory(chip.key, true);
-                      }}
-                      className={`h-9 px-4 rounded-full text-xs sm:text-sm font-bold border transition-all whitespace-nowrap cursor-pointer ${
-                        activeCategory === chip.key
-                          ? 'bg-[#111214] text-white border-[#111214]'
-                          : 'bg-white text-[#111214] border-[#E6E6E3] hover:border-[#111214]'
-                      }`}
+      {/* 2. CART DRAWER (shopify-section--cart-drawer) */}
+      {cartOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div
+            className="kelme-overlay-fade fixed inset-0 bg-black/40"
+            onClick={() => setCartOpen(false)}
+          />
+          <div className="kelme-drawer-right relative z-10 w-full max-w-[440px] bg-white h-full flex flex-col justify-between p-6 sm:p-8 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#deddde] pb-5">
+              <p className="kelme-heading text-[22px] text-[#231f20]">Cart</p>
+              <button
+                type="button"
+                onClick={() => setCartOpen(false)}
+                className="p-1.5 text-[#231f20] opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
+                aria-label="Close cart"
+              >
+                ✕
+              </button>
+            </div>
+
+            {cart.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center gap-6">
+                <p className="kelme-heading text-[20px] text-[#231f20]">
+                  Your cart is empty
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setCartOpen(false)}
+                  className="kelme-pill-btn"
+                >
+                  Continue shopping
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 overflow-y-auto py-6 flex flex-col gap-6">
+                  {cart.map((item) => (
+                    <div
+                      key={`${item.product.id}-${item.size}`}
+                      className="flex gap-4 items-center border-b border-[#deddde]/60 pb-5"
                     >
-                      {chip.label}
-                    </button>
+                      <img
+                        src={item.product.primaryImg}
+                        alt={item.product.title}
+                        className="w-20 h-20 object-contain bg-neutral-50 shrink-0"
+                      />
+                      <div className="flex-1 flex flex-col gap-1">
+                        <p className="text-[14px] font-bold text-[#231f20] leading-snug">
+                          {item.product.title}
+                        </p>
+                        <p className="text-[13px] text-black/60">
+                          Size: EU {item.size}
+                        </p>
+                        <p className="text-[14px] text-[#ed1c24] font-bold">
+                          {formatMoney(item.product.salePrice)}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <div className="inline-flex items-center border border-[#d9d9d9]">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateCartQty(item.product.id, item.size, -1)
+                              }
+                              className="px-2.5 py-0.5 text-sm cursor-pointer"
+                            >
+                              −
+                            </button>
+                            <span className="px-2.5 py-0.5 text-sm">
+                              {item.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateCartQty(item.product.id, item.size, 1)
+                              }
+                              className="px-2.5 py-0.5 text-sm cursor-pointer"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
 
-                <div className="flex items-center gap-2.5 ml-auto">
-                  <select
-                    value={selectedSizeFilter}
-                    onChange={(e) => setSelectedSizeFilter(e.target.value)}
-                    aria-label="ზომის ფილტრი"
-                    className="h-9 rounded-full border border-[#E6E6E3] px-3.5 text-xs sm:text-sm font-semibold bg-white cursor-pointer"
-                  >
-                    <option value="">ყველა ზომა</option>
-                    {allSizes.map((sz) => (
-                      <option key={sz} value={sz}>
-                        ზომა {sz}
-                      </option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={selectedSort}
-                    onChange={(e) =>
-                      setSelectedSort(
-                        e.target.value as 'rec' | 'disc' | 'asc' | 'desc'
-                      )
-                    }
-                    aria-label="დალაგება"
-                    className="h-9 rounded-full border border-[#E6E6E3] px-3.5 text-xs sm:text-sm font-semibold bg-white cursor-pointer"
-                  >
-                    <option value="rec">რეკომენდებული</option>
-                    <option value="disc">ყველაზე დიდი ფასდაკლება</option>
-                    <option value="asc">ფასი: იაფიდან</option>
-                    <option value="desc">ფასი: ძვირიდან</option>
-                  </select>
-                </div>
-              </div>
-
-              {filteredProducts.length === 0 ? (
-                <div className="py-16 text-center bg-[#F4F4F1] rounded-2xl">
-                  <p className="text-[#6B6F76] font-medium">
-                    ამ ზომაზე ამ კატეგორიაში მარაგი არ არის
+                <div className="border-t border-[#deddde] pt-5 flex flex-col gap-4">
+                  <div className="flex items-center justify-between text-[18px] font-bold">
+                    <span className="kelme-heading">Total</span>
+                    <span>{formatMoney(totalCartAmount)}</span>
+                  </div>
+                  <p className="text-[13px] text-black/60">
+                    Shipping & taxes calculated at checkout.{' '}
+                    {totalCartAmount >= 50
+                      ? '✓ You qualify for FREE SHIPPING!'
+                      : ''}
                   </p>
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedSizeFilter('');
-                      navigateToCategory('all', true);
-                    }}
-                    className="mt-3 underline font-bold text-sm"
-                  >
-                    ფილტრის გასუფთავება
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8">
-                  {filteredProducts.map((p) => (
-                    <ProductCard key={p.id} product={p} />
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {/* Dual B2B Team Kits & Tfilisi Academy Sister Banner */}
-            <section className="py-14 max-w-[1380px] mx-auto px-4 sm:px-8">
-              <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-4">
-                {/* Club & Academy Team Kits Banner */}
-                <div className="relative rounded-2xl bg-[#111214] text-white p-8 sm:p-10 min-h-[320px] flex flex-col justify-between overflow-hidden">
-                  <div className="relative z-10 max-w-md">
-                    <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-sky-400 mb-2">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>კლუბებს · სკოლებს · ტფილისის აკადემიას</span>
-                    </span>
-                    <h3 className="font-black text-2xl sm:text-3xl leading-tight">
-                      გუნდური ფორმები და ეკიპირება KELME-სგან
-                    </h3>
-                    <p className="text-sm text-white/80 mt-3 leading-relaxed">
-                      სათამაშო ფორმა, ბუცი და სავარჯიშო ინვენტარი ერთ შეკვეთაში.
-                      ნომრების და კლუბის ლოგოს ბეჭდვა — ჩვენთან. სპეციალური
-                      საბითუმო ფასი 10+ კომპლექტზე.
-                    </p>
-                  </div>
-                  <div className="relative z-10 flex flex-wrap gap-3 mt-6">
-                    <button
-                      type="button"
-                      onClick={navigateToTeam}
-                      className="h-11 px-6 rounded-full bg-white text-[#111214] font-bold text-xs sm:text-sm hover:bg-gray-100 transition-colors cursor-pointer"
-                    >
-                      მოითხოვე შეთავაზება
-                    </button>
-                    <a
-                      href={SHOP_CONFIG.academySisterUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="h-11 px-5 rounded-full border border-white/30 text-white hover:bg-white/10 font-bold text-xs sm:text-sm inline-flex items-center gap-1.5 transition-colors"
-                    >
-                      <span>საფეხბურთო აკადემია ტფილისი</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                  <img
-                    src="/cut/55904-1061.webp"
-                    alt=""
-                    loading="lazy"
-                    className="hidden sm:block absolute -right-6 bottom-2 w-[240px] opacity-30 -rotate-12 pointer-events-none"
-                  />
-                </div>
-
-                {/* Size Help / Messenger Banner */}
-                <div className="relative rounded-2xl bg-[#D7141E] text-white p-8 sm:p-10 min-h-[320px] flex flex-col justify-between overflow-hidden">
-                  <div className="relative z-10 max-w-sm">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-white/80 block mb-2">
-                      სწრაფი კონსულტაცია
-                    </span>
-                    <h3 className="font-black text-2xl sm:text-3xl leading-tight">
-                      არ იცი რომელი ზომაა?
-                    </h3>
-                    <p className="text-sm text-white/90 mt-3 leading-relaxed">
-                      მოგვწერე მოდელი და შენი ჩვეული ზომა ან ტერფის სიგრძე —
-                      ზუსტად შეგირჩევთ და გადაგიდებთ მაღაზიაში.
-                    </p>
-                  </div>
-                  <div className="relative z-10 flex flex-wrap gap-3 mt-6">
-                    <button
-                      type="button"
-                      onClick={() => setIsSizeGuideOpen(true)}
-                      className="h-11 px-6 rounded-full bg-white text-[#D7141E] font-bold text-xs sm:text-sm inline-flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Ruler className="w-4 h-4" />
-                      <span>ზომების ცხრილი</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        showToast('გაიხსნება KELME საქართველოს Messenger ჩატი')
-                      }
-                      className="h-11 px-5 rounded-full border border-white/40 text-white hover:bg-white/10 font-bold text-xs sm:text-sm inline-flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      <span>Messenger</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Store Info Section */}
-            <section className="pb-12 max-w-[1380px] mx-auto px-4 sm:px-8">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-2xl border border-[#E6E6E3] p-7 sm:p-9 bg-white">
-                  <h3 className="font-black text-2xl text-[#111214]">
-                    KELME · ისთ ფოინთი
-                  </h3>
-                  <p className="text-sm text-[#6B6F76] mt-1">
-                    Sport Avenue, სავაჭრო ცენტრი East Point
-                  </p>
-                  <dl className="grid grid-cols-[120px_1fr] gap-y-3 gap-x-4 mt-6 text-sm">
-                    <dt className="text-[#6B6F76]">მისამართი</dt>
-                    <dd className="font-semibold text-[#111214]">
-                      {SHOP_CONFIG.address}
-                    </dd>
-                    <dt className="text-[#6B6F76]">სამუშაო საათი</dt>
-                    <dd className="font-semibold text-[#111214]">
-                      {SHOP_CONFIG.hours}
-                    </dd>
-                    <dt className="text-[#6B6F76]">ტელეფონი</dt>
-                    <dd className="font-semibold text-[#111214]">
-                      <a href={`tel:${SHOP_CONFIG.phone}`} className="underline">
-                        {SHOP_CONFIG.phone}
-                      </a>
-                    </dd>
-                    <dt className="text-[#6B6F76]">მიმოწერა</dt>
-                    <dd className="font-semibold text-[#111214]">
-                      Messenger · Instagram Direct
-                    </dd>
-                  </dl>
-                </div>
-
-                <div className="rounded-2xl bg-gradient-to-br from-[#E9ECE6] to-[#F6F6F3] border border-[#E6E6E3] min-h-[260px] relative flex items-center justify-center overflow-hidden p-6">
-                  <div className="bg-[#D7141E] text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg flex items-center gap-2">
-                    <MapPin className="w-4 h-4" />
-                    <span>KELME · East Point (Sport Avenue)</span>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </>
-        )}
-
-        {/* =========================================================
-            VIEW 2: COLLECTION PAGE
-            ========================================================= */}
-        {activeView === 'collection' && (
-          <section className="py-10 max-w-[1380px] mx-auto px-4 sm:px-8">
-            <div className="mb-6">
-              <div className="text-xs text-[#6B6F76] mb-1">
-                <button
-                  type="button"
-                  onClick={navigateHome}
-                  className="hover:underline"
-                >
-                  მთავარი
-                </button>{' '}
-                / <span>კატალოგი</span>
-              </div>
-              <h1 className="font-black text-3xl sm:text-4xl text-[#111214]">
-                {activeCategory === 'all'
-                  ? 'ყველა პროდუქტი'
-                  : activeCategory === 'sale'
-                    ? 'Outlet · ფასდაკლება −70%-მდე'
-                    : CATEGORIES[activeCategory]?.title}
-              </h1>
-            </div>
-
-            <div className="sticky top-[68px] z-20 bg-white/95 backdrop-blur-md py-3 border-b border-[#E6E6E3] mb-6 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2 overflow-x-auto">
-                {filterChips.map((chip) => (
-                  <button
-                    key={chip.key}
-                    type="button"
-                    onClick={() => navigateToCategory(chip.key)}
-                    className={`h-9 px-4 rounded-full text-xs sm:text-sm font-bold border transition-all whitespace-nowrap cursor-pointer ${
-                      activeCategory === chip.key
-                        ? 'bg-[#111214] text-white border-[#111214]'
-                        : 'bg-white text-[#111214] border-[#E6E6E3] hover:border-[#111214]'
-                    }`}
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-3 ml-auto">
-                <span className="text-xs font-bold text-[#6B6F76]">
-                  {filteredProducts.length} მოდელი
-                </span>
-                <select
-                  value={selectedSizeFilter}
-                  onChange={(e) => setSelectedSizeFilter(e.target.value)}
-                  aria-label="ზომა"
-                  className="h-9 rounded-full border border-[#E6E6E3] px-3.5 text-xs font-semibold bg-white"
-                >
-                  <option value="">ზომა: ყველა</option>
-                  {allSizes.map((sz) => (
-                    <option key={sz} value={sz}>
-                      {sz}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={selectedSort}
-                  onChange={(e) =>
-                    setSelectedSort(
-                      e.target.value as 'rec' | 'disc' | 'asc' | 'desc'
-                    )
-                  }
-                  aria-label="დალაგება"
-                  className="h-9 rounded-full border border-[#E6E6E3] px-3.5 text-xs font-semibold bg-white"
-                >
-                  <option value="rec">რეკომენდებული</option>
-                  <option value="disc">ფასდაკლება</option>
-                  <option value="asc">ფასი ↑</option>
-                  <option value="desc">ფასი ↓</option>
-                </select>
-              </div>
-            </div>
-
-            {filteredProducts.length === 0 ? (
-              <div className="py-20 text-center text-[#6B6F76]">
-                ამ ზომაზე მარაგი არ არის.{' '}
-                <button
-                  type="button"
-                  onClick={() => setSelectedSizeFilter('')}
-                  className="underline font-bold text-[#111214]"
-                >
-                  ფილტრის მოხსნა
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-8">
-                {filteredProducts.map((p) => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* =========================================================
-            VIEW 3: PRODUCT DETAIL PAGE (PDP)
-            ========================================================= */}
-        {activeView === 'product' && activeProductId && byId[activeProductId] && (
-          (() => {
-            const p = byId[activeProductId];
-            const siblings = modelsMap[p.model.toLowerCase()] || [p.id];
-            const sizes = Array.from(
-              new Set(siblings.flatMap((id) => Object.keys(byId[id]?.sizes || {})))
-            ).sort((a, b) => Number(a) - Number(b));
-            const related = products
-              .filter((x) => x.cat === p.cat && x.model !== p.model)
-              .sort((a, b) => b.disc - a.disc)
-              .slice(0, 4);
-
-            return (
-              <div className="max-w-[1380px] mx-auto px-4 sm:px-8 py-8">
-                <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_1fr] gap-8 lg:gap-12">
-                  {/* Left 3-Panel Gallery */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="sm:col-span-2 aspect-square rounded-2xl bg-[#F4F4F1] p-8 flex items-center justify-center relative">
-                      {p.disc > 0 && (
-                        <span className="absolute top-4 left-4 px-3 py-1 rounded-md bg-[#D7141E] text-white font-black text-sm">
-                          −{p.disc}%
-                        </span>
-                      )}
-                      <img
-                        src={p.img}
-                        alt={p.model}
-                        fetchPriority="high"
-                        className="w-full max-w-[480px] object-contain mix-blend-multiply"
-                      />
-                    </div>
-                    <div className="aspect-square rounded-2xl bg-[#F4F4F1] p-6 flex items-center justify-center">
-                      <img
-                        src={`/cut/${p.id}.webp`}
-                        alt=""
-                        loading="lazy"
-                        className="w-[85%] object-contain -rotate-8"
-                      />
-                    </div>
-                    <div
-                      style={{
-                        backgroundColor:
-                          CATEGORIES[p.cat]?.color || '#111214',
-                      }}
-                      className="aspect-square rounded-2xl p-6 flex items-center justify-center"
-                    >
-                      <img
-                        src={`/cut/${p.id}.webp`}
-                        alt=""
-                        loading="lazy"
-                        className="w-[82%] object-contain rotate-6 drop-shadow-[0_18px_22px_rgba(0,0,0,0.28)]"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Right Product Info */}
-                  <div className="lg:sticky lg:top-24 self-start">
-                    <div className="text-xs text-[#6B6F76] mb-3 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={navigateHome}
-                        className="hover:text-[#111214]"
-                      >
-                        მთავარი
-                      </button>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                      <button
-                        type="button"
-                        onClick={() => navigateToCategory(p.cat)}
-                        className="hover:text-[#111214]"
-                      >
-                        {CATEGORIES[p.cat]?.title}
-                      </button>
-                    </div>
-
-                    <h1 className="font-black text-3xl sm:text-4xl text-[#111214] uppercase">
-                      {p.model}
-                    </h1>
-                    <div className="text-sm text-[#6B6F76] mt-1">
-                      {p.color} · კოდი <span className="font-mono">{p.id}</span>
-                    </div>
-
-                    <div className="flex items-baseline gap-3 mt-4">
-                      {p.disc > 0 ? (
-                        <>
-                          <span className="font-black text-3xl text-[#D7141E]">
-                            {formatMoney(p.sale)}
-                          </span>
-                          <del className="text-lg text-[#6B6F76]">
-                            {formatMoney(p.price)}
-                          </del>
-                          <span className="px-2.5 py-1 rounded bg-red-50 text-[#D7141E] font-bold text-xs">
-                            დაზოგე {formatMoney(p.price - p.sale)}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="font-black text-3xl text-[#111214]">
-                          {formatMoney(p.sale)}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Sibling Color Variants */}
-                    {siblings.length > 1 && (
-                      <div className="mt-6">
-                        <div className="text-sm font-bold mb-2">
-                          ფერი:{' '}
-                          <span className="font-normal text-[#6B6F76]">
-                            {p.color}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {siblings.map((sibId) => {
-                            const sib = byId[sibId];
-                            if (!sib) return null;
-                            return (
-                              <button
-                                key={sibId}
-                                type="button"
-                                onClick={() => navigateToProduct(sibId)}
-                                className={`w-16 h-16 rounded-xl bg-[#F4F4F1] p-1.5 border-2 transition-all cursor-pointer ${
-                                  sibId === p.id
-                                    ? 'border-[#111214]'
-                                    : 'border-[#E6E6E3] hover:border-gray-400'
-                                }`}
-                              >
-                                <img
-                                  src={sib.img}
-                                  alt={sib.color}
-                                  className="w-full h-full object-contain mix-blend-multiply"
-                                />
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* EU Size Picker */}
-                    <div className="mt-6">
-                      <div className="flex justify-between items-baseline mb-2">
-                        <span className="text-sm font-bold">ზომა (EU):</span>
-                        <button
-                          type="button"
-                          onClick={() => setIsSizeGuideOpen(true)}
-                          className="text-xs font-bold underline"
-                        >
-                          ზომების ცხრილი
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-5 sm:grid-cols-6 gap-2">
-                        {sizes.map((sz) => {
-                          const qty = p.sizes[sz] || 0;
-                          const isSelected = pdpSelectedSize === sz;
-                          return (
-                            <button
-                              key={sz}
-                              type="button"
-                              disabled={qty <= 0}
-                              onClick={() => {
-                                setPdpSelectedSize(sz);
-                                setPdpError('');
-                              }}
-                              className={`relative h-11 rounded-lg border text-sm font-bold transition-all cursor-pointer ${
-                                qty <= 0
-                                  ? 'size-btn-disabled border-[#E6E6E3]'
-                                  : isSelected
-                                    ? 'bg-[#111214] text-white border-[#111214]'
-                                    : 'bg-white text-[#111214] border-[#E6E6E3] hover:border-[#111214]'
-                              }`}
-                            >
-                              {sz}
-                              {qty === 1 && (
-                                <small className="absolute right-1 top-0.5 text-[9px] font-bold text-[#D7141E]">
-                                  ბოლო
-                                </small>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div className="bg-[#F4F4F1] rounded-xl px-3.5 py-2.5 text-xs text-[#3B3E44] mt-3">
-                        ზომა სტანდარტულია — აირჩიე შენი ჩვეული EU ზომა. მარაგშია{' '}
-                        <strong>{totalStockOf(p)} წყვილი</strong>.
-                      </div>
-
-                      {pdpError && (
-                        <div className="text-xs font-bold text-[#D7141E] mt-2">
-                          {pdpError}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Add to Cart & Messenger */}
-                    <div className="mt-6 space-y-2.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!pdpSelectedSize) {
-                            setPdpError('აირჩიე ზომა კალათაში დასამატებლად');
-                            return;
-                          }
-                          addToCart(p.id, pdpSelectedSize, true);
-                        }}
-                        className="w-full h-13 rounded-full bg-[#111214] hover:bg-black text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                      >
-                        <ShoppingBag className="w-4 h-4" />
-                        <span>
-                          კალათაში დამატება
-                          {pdpSelectedSize ? ` · ზომა ${pdpSelectedSize}` : ''}
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          showToast(
-                            'აქ გაიხსნება KELME საქართველოს Messenger ჩატი'
-                          )
-                        }
-                        className="w-full h-12 rounded-full border-2 border-[#111214] text-[#111214] hover:bg-[#111214] hover:text-white font-bold text-sm transition-colors cursor-pointer"
-                      >
-                        კითხვა ზომაზე? მოგვწერე
-                      </button>
-                    </div>
-
-                    {/* Accordion Details */}
-                    <div className="mt-7 border-t border-[#E6E6E3] divide-y divide-[#E6E6E3] text-sm">
-                      <details className="py-3.5 group" open>
-                        <summary className="font-bold uppercase text-xs tracking-wider cursor-pointer list-none flex justify-between">
-                          <span>აღწერა და მახასიათებლები</span>
-                          <span>+</span>
-                        </summary>
-                        <p className="text-xs text-[#6B6F76] mt-2 leading-relaxed">
-                          KELME {p.model} — {CATEGORIES[p.cat]?.desc}. ფერი:{' '}
-                          {p.color}. ოფიციალური იმპორტი, მაღალი გამძლეობის ძირი
-                          და კომფორტული ერგონომიკა.
-                        </p>
-                      </details>
-                      <details className="py-3.5 group">
-                        <summary className="font-bold uppercase text-xs tracking-wider cursor-pointer list-none flex justify-between">
-                          <span>აღება და მიწოდება</span>
-                          <span>+</span>
-                        </summary>
-                        <p className="text-xs text-[#6B6F76] mt-2 leading-relaxed">
-                          აღება მაღაზიიდან (ისთ ფოინთი, Sport Avenue) უფასოა
-                          იმავე დღეს. მიწოდება თბილისში — 7 ₾ (200 ₾-დან უფასო),
-                          რეგიონებში — 12 ₾.
-                        </p>
-                      </details>
-                      <details className="py-3.5 group">
-                        <summary className="font-bold uppercase text-xs tracking-wider cursor-pointer list-none flex justify-between">
-                          <span>გაცვლა და დაბრუნება</span>
-                          <span>+</span>
-                        </summary>
-                        <p className="text-xs text-[#6B6F76] mt-2 leading-relaxed">
-                          ზომის გაცვლა შესაძლებელია მაღაზიაში, თუ ფეხსაცმელი
-                          უხმარია და ყუთი/ეტიკეტი შენახულია.
-                        </p>
-                      </details>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Related Products */}
-                {related.length > 0 && (
-                  <section className="mt-16 pt-10 border-t border-[#E6E6E3]">
-                    <h2 className="font-black text-2xl mb-6">
-                      შეიძლება მოგეწონოს
-                    </h2>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      {related.map((rel) => (
-                        <ProductCard key={rel.id} product={rel} />
-                      ))}
-                    </div>
-                  </section>
-                )}
-              </div>
-            );
-          })()
-        )}
-
-        {/* =========================================================
-            VIEW 4: CHECKOUT PAGE
-            ========================================================= */}
-        {activeView === 'checkout' && (
-          <div className="max-w-[1280px] mx-auto px-4 sm:px-8 py-10">
-            {cart.length === 0 ? (
-              <div className="max-w-md mx-auto py-16 text-center space-y-4">
-                <h1 className="font-black text-2xl">კალათა ცარიელია</h1>
-                <p className="text-sm text-[#6B6F76]">
-                  დაამატე სასურველი ფეხსაცმელი კალათაში და დაბრუნდი.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => navigateToCategory('all')}
-                  className="h-11 px-6 rounded-full bg-[#111214] text-white font-bold text-sm"
-                >
-                  მაღაზიაში დაბრუნება
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-10">
-                {/* Checkout Form */}
-                <div>
-                  <h1 className="font-black text-2xl sm:text-3xl mb-6">
-                    შეკვეთის გაფორმება
-                  </h1>
-
-                  <form
-                    onSubmit={handleCheckoutSubmit}
-                    noValidate
-                    className="space-y-6"
-                  >
-                    {/* Honeypot */}
-                    <input
-                      name="website"
-                      tabIndex={-1}
-                      autoComplete="off"
-                      style={{ position: 'absolute', left: '-9999px' }}
-                      aria-hidden="true"
-                    />
-
-                    <div>
-                      <h2 className="font-bold text-base uppercase tracking-wider mb-3">
-                        1. საკონტაქტო მონაცემები
-                      </h2>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="kelme-field">
-                          <label
-                            htmlFor="ck-name"
-                            className="block text-xs font-bold text-[#111214] mb-1"
-                          >
-                            სახელი, გვარი *
-                          </label>
-                          <span
-                            id="ck-name-hint"
-                            className="block text-[11px] text-[#6B6F76] mb-1"
-                          >
-                            მიუთითეთ მიმღების სრული სახელი
-                          </span>
-                          <input
-                            id="ck-name"
-                            name="name"
-                            type="text"
-                            required
-                            minLength={2}
-                            autoComplete="name"
-                            aria-describedby="ck-name-hint"
-                            aria-errormessage="ck-name-err"
-                            onBlur={syncInputAria}
-                            onInput={syncInputAria}
-                            placeholder="მაგ. გიორგი ბერიძე"
-                            className="w-full h-11 rounded-xl border border-[#E6E6E3] px-3.5 text-sm outline-hidden focus:border-[#111214]"
-                          />
-                          <div id="ck-name-err" className="error-msg">
-                            <span aria-hidden="true">❌</span> გთხოვთ შეიყვანოთ
-                            სახელი და გვარი.
-                          </div>
-                        </div>
-
-                        <div className="kelme-field">
-                          <label
-                            htmlFor="ck-phone"
-                            className="block text-xs font-bold text-[#111214] mb-1"
-                          >
-                            მობილურის ნომერი *
-                          </label>
-                          <span
-                            id="ck-phone-hint"
-                            className="block text-[11px] text-[#6B6F76] mb-1"
-                          >
-                            ფორმატი: 5XX XX XX XX
-                          </span>
-                          <input
-                            id="ck-phone"
-                            name="phone"
-                            type="tel"
-                            inputMode="tel"
-                            required
-                            autoComplete="tel"
-                            pattern="^(\+?995)?\s?5\d{2}\s?\d{2}\s?\d{2}\s?\d{2}$"
-                            aria-describedby="ck-phone-hint"
-                            aria-errormessage="ck-phone-err"
-                            onBlur={syncInputAria}
-                            onInput={syncInputAria}
-                            placeholder="599 00 00 00"
-                            className="w-full h-11 rounded-xl border border-[#E6E6E3] px-3.5 text-sm outline-hidden focus:border-[#111214]"
-                          />
-                          <div id="ck-phone-err" className="error-msg">
-                            <span aria-hidden="true">❌</span> შეიყვანეთ ქართული
-                            მობილურის ნომერი (5XX XX XX XX).
-                          </div>
-                        </div>
-
-                        <div className="kelme-field sm:col-span-2">
-                          <label
-                            htmlFor="ck-email"
-                            className="block text-xs font-bold text-[#111214] mb-1"
-                          >
-                            ელფოსტა (სურვილისამებრ)
-                          </label>
-                          <span
-                            id="ck-email-hint"
-                            className="block text-[11px] text-[#6B6F76] mb-1"
-                          >
-                            ფორმატი: name@example.com
-                          </span>
-                          <input
-                            id="ck-email"
-                            name="email"
-                            type="email"
-                            autoComplete="email"
-                            aria-describedby="ck-email-hint"
-                            aria-errormessage="ck-email-err"
-                            onBlur={syncInputAria}
-                            onInput={syncInputAria}
-                            placeholder="you@example.com"
-                            className="w-full h-11 rounded-xl border border-[#E6E6E3] px-3.5 text-sm outline-hidden focus:border-[#111214]"
-                          />
-                          <div id="ck-email-err" className="error-msg">
-                            <span aria-hidden="true">❌</span> გთხოვთ შეიყვანოთ
-                            სწორი ელფოსტის მისამართი.
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Shipping Method */}
-                    <div>
-                      <h2 className="font-bold text-base uppercase tracking-wider mb-3">
-                        2. მიღების მეთოდი
-                      </h2>
-                      <div className="space-y-2.5">
-                        <label
-                          className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
-                            shipMethod === 'pickup'
-                              ? 'border-[#111214] bg-[#F4F4F1]/60'
-                              : 'border-[#E6E6E3]'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="ship"
-                            value="pickup"
-                            checked={shipMethod === 'pickup'}
-                            onChange={() => setShipMethod('pickup')}
-                            className="mt-1 accent-[#111214]"
-                          />
-                          <div className="flex-1">
-                            <div className="font-bold text-sm">
-                              აღება მაღაზიიდან (East Point)
-                            </div>
-                            <div className="text-xs text-[#6B6F76]">
-                              Sport Avenue · ზომა დაგიჯავშნებათ იმავე დღეს
-                            </div>
-                          </div>
-                          <span className="font-bold text-xs text-[#12784A]">
-                            უფასო
-                          </span>
-                        </label>
-
-                        <label
-                          className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
-                            shipMethod === 'tbilisi'
-                              ? 'border-[#111214] bg-[#F4F4F1]/60'
-                              : 'border-[#E6E6E3]'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="ship"
-                            value="tbilisi"
-                            checked={shipMethod === 'tbilisi'}
-                            onChange={() => setShipMethod('tbilisi')}
-                            className="mt-1 accent-[#111214]"
-                          />
-                          <div className="flex-1">
-                            <div className="font-bold text-sm">
-                              მიწოდება თბილისში
-                            </div>
-                            <div className="text-xs text-[#6B6F76]">
-                              1–2 სამუშაო დღე (200 ₾-დან უფასო)
-                            </div>
-                          </div>
-                          <span className="font-bold text-xs">
-                            {cartSubtotal >= SHOP_CONFIG.delivery.freeFrom
-                              ? 'უფასო'
-                              : formatMoney(SHOP_CONFIG.delivery.tbilisi)}
-                          </span>
-                        </label>
-
-                        <label
-                          className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
-                            shipMethod === 'regions'
-                              ? 'border-[#111214] bg-[#F4F4F1]/60'
-                              : 'border-[#E6E6E3]'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="ship"
-                            value="regions"
-                            checked={shipMethod === 'regions'}
-                            onChange={() => setShipMethod('regions')}
-                            className="mt-1 accent-[#111214]"
-                          />
-                          <div className="flex-1">
-                            <div className="font-bold text-sm">
-                              მიწოდება რეგიონებში
-                            </div>
-                            <div className="text-xs text-[#6B6F76]">
-                              2–4 სამუშაო დღე (200 ₾-დან უფასო)
-                            </div>
-                          </div>
-                          <span className="font-bold text-xs">
-                            {cartSubtotal >= SHOP_CONFIG.delivery.freeFrom
-                              ? 'უფასო'
-                              : formatMoney(SHOP_CONFIG.delivery.regions)}
-                          </span>
-                        </label>
-                      </div>
-
-                      {shipMethod !== 'pickup' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 p-4 rounded-xl bg-[#F4F4F1]">
-                          <div className="kelme-field">
-                            <label
-                              htmlFor="ck-city"
-                              className="block text-xs font-bold mb-1"
-                            >
-                              ქალაქი *
-                            </label>
-                            <input
-                              id="ck-city"
-                              name="city"
-                              type="text"
-                              required
-                              defaultValue={
-                                shipMethod === 'tbilisi' ? 'თბილისი' : ''
-                              }
-                              placeholder="მაგ. თბილისი, ბათუმი..."
-                              className="w-full h-10 rounded-lg border border-[#E6E6E3] bg-white px-3 text-sm"
-                            />
-                          </div>
-                          <div className="kelme-field">
-                            <label
-                              htmlFor="ck-address"
-                              className="block text-xs font-bold mb-1"
-                            >
-                              ზუსტი მისამართი *
-                            </label>
-                            <input
-                              id="ck-address"
-                              name="address"
-                              type="text"
-                              required
-                              minLength={4}
-                              placeholder="ქუჩა, ნომერი, სადარბაზო"
-                              className="w-full h-10 rounded-lg border border-[#E6E6E3] bg-white px-3 text-sm"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Payment Method */}
-                    <div>
-                      <h2 className="font-bold text-base uppercase tracking-wider mb-3">
-                        3. გადახდის მეთოდი
-                      </h2>
-                      <div className="space-y-2.5">
-                        <label
-                          className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
-                            payMethod === 'store'
-                              ? 'border-[#111214] bg-[#F4F4F1]/60'
-                              : 'border-[#E6E6E3]'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="pay"
-                            value="store"
-                            checked={payMethod === 'store'}
-                            onChange={() => setPayMethod('store')}
-                            className="mt-1 accent-[#111214]"
-                          />
-                          <div>
-                            <div className="font-bold text-sm">
-                              გადახდა მაღაზიაში / მიღებისას
-                            </div>
-                            <div className="text-xs text-[#6B6F76]">
-                              ნაღდი ანგარიშსწორებით ან საბანკო ტერმინალით
-                            </div>
-                          </div>
-                        </label>
-
-                        {SHOP_CONFIG.payment && (
-                          <label
-                            className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
-                              payMethod === 'card'
-                                ? 'border-[#111214] bg-[#F4F4F1]/60'
-                                : 'border-[#E6E6E3]'
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name="pay"
-                              value="card"
-                              checked={payMethod === 'card'}
-                              onChange={() => setPayMethod('card')}
-                              className="mt-1 accent-[#111214]"
-                            />
-                            <div>
-                              <div className="font-bold text-sm">
-                                ბარათით ონლაინ (Visa / Mastercard / Apple Pay)
-                              </div>
-                              <div className="text-xs text-[#6B6F76]">
-                                ბანკის დაცული გადახდის გვერდი
-                              </div>
-                            </div>
-                          </label>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="kelme-field">
-                      <label
-                        htmlFor="ck-note"
-                        className="block text-xs font-bold mb-1"
-                      >
-                        კომენტარი (სურვილისამებრ)
-                      </label>
-                      <textarea
-                        id="ck-note"
-                        name="note"
-                        rows={3}
-                        placeholder="მაგ. რომელ საათზე მოხვალთ მაღაზიაში..."
-                        className="w-full rounded-xl border border-[#E6E6E3] p-3.5 text-sm outline-hidden focus:border-[#111214]"
-                      />
-                    </div>
-
-                    {ckError && (
-                      <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs font-bold text-[#D7141E]">
-                        {ckError}
-                      </div>
-                    )}
-
-                    <button
-                      type="submit"
-                      disabled={ckSubmitting}
-                      className="w-full h-13 rounded-full bg-[#D7141E] hover:bg-[#B00F17] disabled:opacity-50 text-white font-black text-sm uppercase tracking-wider transition-colors shadow-lg cursor-pointer"
-                    >
-                      {ckSubmitting
-                        ? 'შეკვეთა მუშავდება…'
-                        : `შეკვეთის დადასტურება · ${formatMoney(cartSubtotal + deliveryFee)}`}
-                    </button>
-                  </form>
-                </div>
-
-                {/* Order Summary Sidebar */}
-                <div className="bg-[#F4F4F1] rounded-3xl p-6 sm:p-8 self-start border border-[#E6E6E3]">
-                  <h3 className="font-black text-lg mb-4">
-                    შეკვეთის შეჯამება
-                  </h3>
-                  <div className="space-y-3 divide-y divide-[#E6E6E3]">
-                    {cart.map((c) => {
-                      const p = byId[c.id];
-                      if (!p) return null;
-                      return (
-                        <div
-                          key={`${c.id}-${c.size}`}
-                          className="pt-3 first:pt-0 grid grid-cols-[64px_1fr_auto] gap-3 items-center"
-                        >
-                          <div className="relative w-16 h-16 rounded-xl bg-white p-1.5 border border-[#E6E6E3]">
-                            <img
-                              src={p.img}
-                              alt={p.model}
-                              className="w-full h-full object-contain"
-                            />
-                            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#111214] text-white text-[10px] font-bold grid place-items-center">
-                              {c.q}
-                            </span>
-                          </div>
-                          <div>
-                            <div className="font-bold text-sm">{p.model}</div>
-                            <div className="text-xs text-[#6B6F76]">
-                              {p.color} · ზომა {c.size}
-                            </div>
-                          </div>
-                          <div className="font-bold text-sm">
-                            {formatMoney(p.sale * c.q)}
-                          </div>
-                        </div>
+                      alert(
+                        `Order placed! Total: ${formatMoney(totalCartAmount)}`
                       );
-                    })}
-                  </div>
-
-                  <div className="mt-6 pt-4 border-t border-[#E6E6E3] space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-[#6B6F76]">პროდუქცია</span>
-                      <span className="font-semibold">
-                        {formatMoney(cartSubtotal)}
-                      </span>
-                    </div>
-                    {cartSavings > 0 && (
-                      <div className="flex justify-between text-[#12784A] font-bold">
-                        <span>დაზოგე</span>
-                        <span>−{formatMoney(cartSavings)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-[#6B6F76]">მიწოდება</span>
-                      <span className="font-semibold">
-                        {deliveryFee ? formatMoney(deliveryFee) : 'უფასო'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xl font-black pt-2 border-t border-[#E6E6E3]">
-                      <span>სულ გადასახდელი</span>
-                      <span>{formatMoney(cartSubtotal + deliveryFee)}</span>
-                    </div>
-                  </div>
+                      setCart([]);
+                      setCartOpen(false);
+                    }}
+                    className="kelme-pill-btn w-full"
+                  >
+                    Checkout
+                  </button>
                 </div>
-              </div>
+              </>
             )}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* =========================================================
-            VIEW 5: ORDER CONFIRMATION (OK PAGE)
-            ========================================================= */}
-        {activeView === 'order-ok' && (
-          <div className="max-w-xl mx-auto px-4 py-16 text-center">
-            <div className="w-16 h-16 rounded-full bg-[#12784A] text-white grid place-items-center mx-auto mb-5 shadow-lg">
-              <Check className="w-8 h-8 stroke-[2.5]" />
-            </div>
-            <h1 className="font-black text-3xl text-[#111214]">
-              მადლობა! შეკვეთა მიღებულია
-            </h1>
-            <p className="text-sm text-[#6B6F76] mt-2 leading-relaxed">
-              შენი ზომა დაჯავშნილია. მენეჯერი დაგიკავშირდებათ დეტალების
-              დასადასტურებლად.
-            </p>
-
-            <div className="bg-[#F4F4F1] rounded-2xl p-6 text-left mt-6 space-y-2.5 text-sm border border-[#E6E6E3]">
-              <div className="flex justify-between">
-                <span className="text-[#6B6F76]">შეკვეთის კოდი:</span>
-                <strong className="font-mono text-[#111214]">
-                  {activeOrderId}
-                </strong>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#6B6F76]">სტატუსი:</span>
-                <strong className="text-[#12784A]">
-                  {ORDER_STATUS_KA[liveOrderStatus] || liveOrderStatus}
-                </strong>
-              </div>
-              {lastOrderDetails && (
-                <div className="flex justify-between">
-                  <span className="text-[#6B6F76]">ჯამური თანხა:</span>
-                  <strong>{formatMoney(lastOrderDetails.total)}</strong>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-[#6B6F76]">მისამართი:</span>
-                <strong>ისთ ფოინთი, Sport Avenue</strong>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={navigateHome}
-              className="mt-7 h-12 px-8 rounded-full bg-[#111214] text-white font-bold text-sm"
-            >
-              მთავარ გვერდზე დაბრუნება
-            </button>
-          </div>
-        )}
-
-        {/* =========================================================
-            VIEW 6: B2B TEAM KITS PAGE
-            ========================================================= */}
-        {activeView === 'team' && (
-          <div className="max-w-3xl mx-auto px-4 sm:px-8 py-12">
-            <div className="text-xs font-extrabold uppercase tracking-wider text-[#D7141E] mb-1">
-              B2B · კლუბებს და აკადემიებს
-            </div>
-            <h1 className="font-black text-3xl sm:text-4xl text-[#111214]">
-              გუნდური ფორმები და ეკიპირება
-            </h1>
-            <p className="text-sm sm:text-base text-[#3B3E44] mt-3 leading-relaxed">
-              KELME უზრუნველყოფს საფეხბურთო კლუბებს, სკოლებსა და{' '}
-              <strong>საფეხბურთო აკადემია ტფილისს</strong> სრული სპორტული
-              ეკიპირებით: სათამაშო და სავარჯიშო ფორმები, Turf/Indoor ბუცები და
-              აქსესუარები. დაგვიტოვეთ საკონტაქტო მონაცემები და 1 სამუშაო დღეში
-              მოგიმზადებთ ინდივიდუალურ შეთავაზებას.
-            </p>
-
-            <form
-              onSubmit={handleLeadSubmit}
-              noValidate
-              className="mt-8 bg-[#F4F4F1] p-6 sm:p-8 rounded-3xl border border-[#E6E6E3] space-y-4"
-            >
-              <input
-                name="website"
-                tabIndex={-1}
-                autoComplete="off"
-                style={{ position: 'absolute', left: '-9999px' }}
-                aria-hidden="true"
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="kelme-field">
-                  <label className="block text-xs font-bold mb-1">
-                    კლუბი / აკადემია / ორგანიზაცია *
-                  </label>
-                  <input
-                    name="org"
-                    required
-                    onBlur={syncInputAria}
-                    onInput={syncInputAria}
-                    placeholder="მაგ. საფეხბურთო აკადემია ტფილისი"
-                    className="w-full h-11 rounded-xl border border-[#E6E6E3] bg-white px-3.5 text-sm"
+      {/* 3. SEARCH DRAWER */}
+      {searchOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col">
+          <div
+            className="kelme-overlay-fade fixed inset-0 bg-black/40"
+            onClick={() => setSearchOpen(false)}
+          />
+          <div className="kelme-mega-menu-enter relative z-10 w-full bg-white p-6 sm:p-10 shadow-xl">
+            <div className="max-w-[1150px] mx-auto flex flex-col gap-6">
+              <div className="flex items-center gap-4 border-b border-[#d9d9d9] pb-4">
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 38 38"
+                  fill="none"
+                  className="shrink-0"
+                >
+                  <path
+                    d="M14 28C17.506 28 20.703 26.702 23.159 24.573L36 37.414L37.414 36L24.573 23.159C26.702 20.703 28 17.506 28 14C28 6.268 21.732 0 14 0C6.268 0 0 6.268 0 14C0 21.732 6.268 28 14 28ZM14 2C20.617 2 26 7.383 26 14C26 20.617 20.617 26 14 26C7.383 26 2 20.617 2 14C2 7.383 7.383 2 14 2Z"
+                    fill="black"
                   />
-                  <div className="error-msg">❌ მიუთითეთ ორგანიზაცია</div>
-                </div>
-                <div className="kelme-field">
-                  <label className="block text-xs font-bold mb-1">
-                    საკონტაქტო პირი *
-                  </label>
-                  <input
-                    name="name"
-                    required
-                    onBlur={syncInputAria}
-                    onInput={syncInputAria}
-                    placeholder="სახელი, გვარი"
-                    className="w-full h-11 rounded-xl border border-[#E6E6E3] bg-white px-3.5 text-sm"
-                  />
-                  <div className="error-msg">❌ მიუთითეთ სახელი</div>
-                </div>
-                <div className="kelme-field">
-                  <label className="block text-xs font-bold mb-1">
-                    ტელეფონის ნომერი *
-                  </label>
-                  <input
-                    name="phone"
-                    type="tel"
-                    inputMode="tel"
-                    required
-                    onBlur={syncInputAria}
-                    onInput={syncInputAria}
-                    placeholder="5XX XX XX XX"
-                    className="w-full h-11 rounded-xl border border-[#E6E6E3] bg-white px-3.5 text-sm"
-                  />
-                  <div className="error-msg">❌ მიუთითეთ ტელეფონი</div>
-                </div>
-                <div className="kelme-field">
-                  <label className="block text-xs font-bold mb-1">
-                    რაოდენობა (კომპლექტი)
-                  </label>
-                  <input
-                    name="qty"
-                    inputMode="numeric"
-                    placeholder="მაგ. 25 კომპლექტი"
-                    className="w-full h-11 rounded-xl border border-[#E6E6E3] bg-white px-3.5 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="kelme-field">
-                <label className="block text-xs font-bold mb-1">
-                  რა გჭირდებათ? (ფორმა, ბუცი, ზომები, ბეჭდვა)
-                </label>
-                <textarea
-                  name="note"
-                  rows={3}
-                  placeholder="აღწერეთ სასურველი ეკიპირება და ვადები..."
-                  className="w-full rounded-xl border border-[#E6E6E3] bg-white p-3.5 text-sm"
+                </svg>
+                <input
+                  type="text"
+                  autoFocus
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search for products, futsal shoes, running..."
+                  className="flex-1 text-[18px] focus:outline-none text-black"
                 />
+                <button
+                  type="button"
+                  onClick={() => setSearchOpen(false)}
+                  className="p-2 text-black/60 hover:text-black transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
               </div>
 
-              <button
-                type="submit"
-                disabled={leadSubmitting}
-                className="h-12 px-8 rounded-full bg-[#111214] hover:bg-black text-white font-bold text-sm cursor-pointer"
-              >
-                {leadSubmitting ? 'იგზავნება…' : 'მოთხოვნის გაგზავნა'}
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* =========================================================
-            VIEW 7: STORE & INFO PAGES
-            ========================================================= */}
-        {(activeView === 'store' || activeView === 'info') && (
-          <div className="max-w-3xl mx-auto px-4 sm:px-8 py-12 space-y-6">
-            {activeView === 'store' ? (
-              <>
-                <h1 className="font-black text-3xl">
-                  მაღაზია და საკონტაქტო ინფორმაცია
-                </h1>
-                <div className="rounded-2xl bg-[#F4F4F1] p-6 sm:p-8 space-y-4 border border-[#E6E6E3]">
-                  <h2 className="font-black text-xl">
-                    KELME საქართველო · ისთ ფოინთი
-                  </h2>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-[#D7141E]" />
-                      <span>{SHOP_CONFIG.address}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-[#D7141E]" />
-                      <span>{SHOP_CONFIG.hours}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-[#D7141E]" />
-                      <span>{SHOP_CONFIG.phone}</span>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <h1 className="font-black text-3xl">
-                  {activeInfoKey === 'order' && 'როგორ შევუკვეთო'}
-                  {activeInfoKey === 'returns' && 'გაცვლა და დაბრუნება'}
-                  {activeInfoKey === 'privacy' && 'კონფიდენციალურობის პოლიტიკა'}
-                  {activeInfoKey === 'terms' && 'წესები და პირობები'}
-                  {activeInfoKey === 'sizes' && 'ზომების ცხრილი'}
-                </h1>
-                <div className="rounded-2xl bg-[#F4F4F1] p-6 sm:p-8 text-sm leading-relaxed space-y-3 border border-[#E6E6E3]">
-                  {activeInfoKey === 'order' && (
-                    <ul className="list-disc pl-5 space-y-2">
-                      <li>აირჩიე სასურველი მოდელი და EU ზომა, დაამატე კალათაში.</li>
-                      <li>შეავსე სახელი, გვარი და მობილურის ნომერი.</li>
-                      <li>
-                        აირჩიე მაღაზიიდან უფასო აღება (ისთ ფოინთი, Sport Avenue)
-                        ან საკურიერო მიწოდება.
-                      </li>
-                      <li>
-                        შეკვეთის დადასტურებისთანავე ზომა იჯავშნება შენს სახელზე.
-                      </li>
-                    </ul>
-                  )}
-                  {activeInfoKey === 'returns' && (
-                    <p>
-                      ზომის გაცვლა ან დაბრუნება შესაძლებელია მაღაზიაში (ს/ც ისთ
-                      ფოინთი, Sport Avenue), თუ ფეხსაცმელი უხმარია და შენახულია
-                      ქარხნული შეფუთვა და ქვითარი.
-                    </p>
-                  )}
-                  {activeInfoKey === 'privacy' && (
-                    <p>
-                      მომხმარებლის სახელი, ტელეფონის ნომერი და ელფოსტა
-                      გამოიყენება მხოლოდ შეკვეთის დამუშავებისა და მიწოდებისთვის.
-                      ონლაინ გადახდისას ბარათის მონაცემები მუშავდება უშუალოდ
-                      ბანკის დაცულ გვერდზე.
-                    </p>
-                  )}
-                  {activeInfoKey === 'terms' && (
-                    <p>
-                      საიტზე მოცემული ყველა ფასი მითითებულია ლარში (₾) დღგ-ს
-                      ჩათვლით. შეკვეთის გაფორმებისას ზომა იჯავშნება ავტომატურად.
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Bottom USP Strip */}
-        <div className="max-w-[1380px] mx-auto px-4 sm:px-8 mt-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 py-7 border-t border-b border-[#E6E6E3]">
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="w-6 h-6 text-[#111214] shrink-0" />
-              <div>
-                <strong className="block text-sm">ორიგინალი პროდუქცია</strong>
-                <span className="text-xs text-[#6B6F76]">
-                  KELME-ს ოფიციალური მარაგი
-                </span>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <RefreshCw className="w-6 h-6 text-[#111214] shrink-0" />
-              <div>
-                <strong className="block text-sm">ზომის მარტივი გაცვლა</strong>
-                <span className="text-xs text-[#6B6F76]">
-                  ისთ ფოინთის მაღაზიაში
-                </span>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <MapPin className="w-6 h-6 text-[#111214] shrink-0" />
-              <div>
-                <strong className="block text-sm">აიღე მაღაზიიდან უფასოდ</strong>
-                <span className="text-xs text-[#6B6F76]">
-                  დაჯავშნე ონლაინ 1 წუთში
-                </span>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <CreditCard className="w-6 h-6 text-[#111214] shrink-0" />
-              <div>
-                <strong className="block text-sm">მოქნილი გადახდა</strong>
-                <span className="text-xs text-[#6B6F76]">
-                  მაღაზიაში ან ონლაინ ბარათით
-                </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+                {filteredSearchProducts.map((p, idx) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setSearchOpen(false);
+                      openQuickBuy(p);
+                    }}
+                    className="kelme-mega-col-enter flex flex-col items-center text-center gap-2 group cursor-pointer"
+                    style={{ animationDelay: `${idx * 0.05}s` }}
+                  >
+                    <img
+                      src={p.primaryImg}
+                      alt={p.title}
+                      className="w-full aspect-square object-contain group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <span className="text-[14px] text-black line-clamp-1">
+                      {p.title}
+                    </span>
+                    <span className="text-[14px] text-[#ed1c24] font-bold">
+                      {formatMoney(p.salePrice)}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
           </div>
         </div>
-      </main>
+      )}
 
-      <Footer />
+      {/* 4. QUICK BUY MODAL (quick-buy-modal) */}
+      {quickBuyProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="kelme-overlay-fade fixed inset-0 bg-black/40"
+            onClick={() => setQuickBuyProduct(null)}
+          />
+          <div className="kelme-modal-pop relative z-10 bg-white w-full max-w-[760px] p-6 sm:p-10 shadow-2xl grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            <button
+              type="button"
+              onClick={() => setQuickBuyProduct(null)}
+              className="absolute top-4 right-4 p-2 text-black/60 hover:text-black transition-colors cursor-pointer"
+              aria-label="Close modal"
+            >
+              ✕
+            </button>
+
+            <div className="relative aspect-square bg-white">
+              <span className="absolute top-2 left-2 bg-[#ed1c24] text-white kelme-heading text-[11px] px-1.5 py-0.5">
+                {quickBuyProduct.badge}
+              </span>
+              <img
+                src={quickBuyProduct.primaryImg}
+                alt={quickBuyProduct.title}
+                className="w-full h-full object-contain"
+              />
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <h3 className="kelme-heading text-[22px] leading-tight text-[#231f20]">
+                {quickBuyProduct.title}
+              </h3>
+
+              <div className="flex items-center gap-3 text-[20px]">
+                <span className="text-[#ed1c24] font-bold">
+                  {formatMoney(quickBuyProduct.salePrice)}
+                </span>
+                <span className="text-black/50 line-through">
+                  {formatMoney(quickBuyProduct.regularPrice)}
+                </span>
+              </div>
+
+              <StarRating ratingStr={quickBuyProduct.rating} />
+
+              <div className="flex flex-col gap-2 mt-2">
+                <span className="text-[14px] font-bold text-[#231f20]">
+                  Size (EU): {selectedSize}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {quickBuyProduct.sizes.map((sz) => (
+                    <button
+                      key={sz}
+                      type="button"
+                      onClick={() => setSelectedSize(sz)}
+                      className={`px-3.5 py-2 text-[14px] border transition-colors cursor-pointer ${
+                        selectedSize === sz
+                          ? 'border-black bg-black text-white font-bold'
+                          : 'border-[#d9d9d9] bg-white text-black hover:border-black'
+                      }`}
+                    >
+                      {sz}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => addToCart(quickBuyProduct, selectedSize)}
+                className="kelme-pill-btn mt-3 w-full"
+              >
+                Add to cart
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. ACCOUNT LOGIN MODAL */}
+      {accountOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="kelme-overlay-fade fixed inset-0 bg-black/40"
+            onClick={() => setAccountOpen(false)}
+          />
+          <div className="kelme-modal-pop relative z-10 bg-white w-full max-w-[440px] p-8 shadow-2xl flex flex-col gap-5">
+            <div className="flex items-center justify-between">
+              <h3 className="kelme-heading text-[24px] text-[#231f20]">
+                Login
+              </h3>
+              <button
+                type="button"
+                onClick={() => setAccountOpen(false)}
+                className="p-1 text-black/60 hover:text-black transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-[15px] text-black/70">
+              Enter your email and password to login:
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setAccountOpen(false);
+              }}
+              className="flex flex-col gap-4"
+            >
+              <input
+                type="email"
+                required
+                placeholder="E-mail"
+                className="w-full border border-[#d9d9d9] px-3.5 py-2.5 text-[16px] focus:outline-none focus:border-black"
+              />
+              <input
+                type="password"
+                required
+                placeholder="Password"
+                className="w-full border border-[#d9d9d9] px-3.5 py-2.5 text-[16px] focus:outline-none focus:border-black"
+              />
+              <button type="submit" className="kelme-pill-btn w-full">
+                Login
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

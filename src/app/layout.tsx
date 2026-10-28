@@ -3,9 +3,9 @@ import './globals.css';
 import Providers from '../components/Providers';
 
 export const metadata: Metadata = {
-  title: 'KELME საქართველო — ოფიციალური ონლაინ მაღაზია | Sport Avenue',
+  title: 'Kelme Spain | Official Store of Sportswear, Footwear, and Accessories',
   description:
-    'KELME ფეხსაცმელი, საფეხბურთო ბუცები, სპორტული და ყოველდღიური სნიკერსები, საბავშვო მოდელები და გუნდური ფორმები საქართველოში. ს/ც ისთ ფოინთი, Sport Avenue.',
+    'Discover the official Kelme store. Buy futsal shoes, running shoes, football boots, sportswear, and official kits.',
 };
 
 export default function RootLayout({
@@ -14,17 +14,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ka" className="h-full antialiased">
+    <html lang="en" className="h-full antialiased">
       <head>
         <link
           rel="preload"
-          href="/fonts/noto-sans-georgian-georgian-700-normal.woff2"
+          href="/fonts/cabin-latin-700-normal.woff2"
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"
         />
       </head>
-      <body className="min-h-full flex flex-col bg-white text-[#111214]">
+      <body className="min-h-full flex flex-col bg-white text-[#000000]">
         <Providers>{children}</Providers>
       </body>
     </html>

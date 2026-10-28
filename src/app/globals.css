@@ -38,26 +38,13 @@
   src: url("/fonts/noto-sans-georgian-georgian-700-normal.woff2") format("woff2");
 }
 
-@font-face {
-  font-family: "Noto Sans Georgian";
-  font-weight: 800;
-  font-display: swap;
-  unicode-range: U+0589, U+10A0-10FF, U+1C90-1CBF, U+2D00-2D2F;
-  src: url("/fonts/noto-sans-georgian-georgian-800-normal.woff2") format("woff2");
-}
-
 :root {
-  --ink: #111214;
-  --ink2: #000000;
-  --mut: #6b6f76;
-  --line: #e6e6e3;
-  --soft: #f4f4f1;
-  --bg: #ffffff;
-  --red: #d7141e;
-  --red-dark: #b00f17;
-  --green: #12784a;
-  --head: "Cabin", "Noto Sans Georgian", Helvetica, Arial, sans-serif;
-  --body: "Noto Sans Georgian", "Cabin", Helvetica, Arial, sans-serif;
+  --heading-font-family: "Cabin", sans-serif;
+  --text-font-family: Helvetica, Arial, sans-serif;
+  --accent: #231f20;
+  --on-sale: #ed1c24;
+  --footer-bg: #fafafa;
+  --border-color: #d9d9d9;
 }
 
 * {
@@ -70,91 +57,437 @@ html {
 }
 
 body {
-  background: var(--bg);
-  color: var(--ink);
-  font-family: var(--body);
+  background: #ffffff;
+  color: #000000;
+  font-family: var(--text-font-family);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Native <dialog> backdrop styling (Modern Web Guidance: light-dismiss-a-dialog) */
-dialog::backdrop {
-  background-color: rgba(10, 10, 12, 0.55);
-  backdrop-filter: blur(4px);
+.kelme-heading {
+  font-family: var(--heading-font-family);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: -0.05em;
 }
 
-dialog[open] {
-  animation: dialogPopIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes dialogPopIn {
-  from {
-    opacity: 0;
-    transform: scale(0.96) translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-/* Form validation after interaction (Modern Web Guidance: validate-input-after-interaction) */
-.kelme-field .error-msg {
+/* Hide scrollbars on horizontal carousels */
+.no-scrollbar::-webkit-scrollbar {
   display: none;
-  color: #d7141e;
-  font-size: 0.78rem;
-  font-weight: 600;
-  margin-top: 0.35rem;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-.kelme-field input:user-invalid,
-.kelme-field textarea:user-invalid,
-.kelme-field input.user-invalid-fallback,
-.kelme-field textarea.user-invalid-fallback {
-  border-color: #d7141e !important;
-  background-color: #fef2f2 !important;
-}
+/* ==========================================================================
+   EXACT KELME.COM THEME KEYFRAMES & ANIMATIONS
+   ========================================================================== */
 
-.kelme-field input:user-invalid + .error-msg,
-.kelme-field textarea:user-invalid + .error-msg,
-.kelme-field input.user-invalid-fallback + .error-msg,
-.kelme-field textarea.user-invalid-fallback + .error-msg {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.kelme-field input:user-valid,
-.kelme-field input.user-valid-fallback {
-  border-color: #12784a;
-}
-
-/* Marquee animation for promo bar */
-@keyframes kelmeMarquee {
-  from {
+/* 1. Arrow icon inline fly-through on circle buttons */
+@keyframes animateIconInlineNext {
+  0% {
+    opacity: 1;
     transform: translateX(0);
   }
-  to {
-    transform: translateX(-50%);
+  50% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  51% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
   }
 }
 
-.animate-kelme-marquee {
+@keyframes animateIconInlinePrev {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  50% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  51% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 2. Circular progress ring on active hero slideshow dot */
+@keyframes animateCircularProgress {
+  0% {
+    stroke-dashoffset: 20.420352248335;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.kelme-circular-progress {
+  transform: rotate(-90deg);
+}
+
+.kelme-circular-progress .progress-ring {
+  stroke-dasharray: 20.420352248335;
+  stroke-dashoffset: 20.420352248335;
+  animation: animateCircularProgress 4.5s linear forwards;
+}
+
+/* 3. Hero Slideshow image scale(1.2 -> 1) + content staggered rise */
+@keyframes kelmeHeroImageZoomOut {
+  0% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes kelmeHeroProseEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes kelmeHeroButtonEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.kelme-slide-active-img {
+  animation: kelmeHeroImageZoomOut 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.kelme-slide-active-prose {
+  opacity: 0;
+  animation: kelmeHeroProseEnter 0.6s cubic-bezier(0.215, 0.61, 0.355, 1) 0.35s forwards;
+}
+
+.kelme-slide-active-btn {
+  opacity: 0;
+  animation: kelmeHeroButtonEnter 0.6s cubic-bezier(0.215, 0.61, 0.355, 1) 0.48s forwards;
+}
+
+/* 4. Announcement bar vertical slide-fade */
+@keyframes kelmeAnnouncementEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.kelme-announcement-animate {
+  animation: kelmeAnnouncementEnter 0.4s cubic-bezier(0.215, 0.61, 0.355, 1) forwards;
+}
+
+/* 5. Header nav item bottom bar sweep (.header__primary-nav-item:before) */
+.kelme-nav-underline {
+  position: relative;
+}
+
+.kelme-nav-underline::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: #231f20;
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 0.2s ease-in-out;
+  pointer-events: none;
+}
+
+.kelme-nav-underline:hover::before,
+.kelme-nav-underline.is-active::before {
+  transform: scaleX(1);
+}
+
+/* 6. Mega-Menu & Dropdown staggered item entrance */
+@keyframes kelmeMenuFadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes kelmeMenuItemRise {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes kelmeTopBorderSweep {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+.kelme-mega-menu-enter {
+  animation: kelmeMenuFadeIn 0.25s ease forwards;
+}
+
+.kelme-mega-col-enter {
+  opacity: 0;
+  animation: kelmeMenuItemRise 0.3s ease forwards;
+}
+
+.kelme-dropdown-enter {
+  position: relative;
+  animation: kelmeMenuFadeIn 0.25s ease forwards;
+}
+
+.kelme-dropdown-enter::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  background: #231f20;
+  transform-origin: left;
+  animation: kelmeTopBorderSweep 0.25s ease-in-out 50ms both;
+}
+
+/* 7. Authentic Kelme Pill Button with Horizontal Wipe-Fill Hover (.button) */
+.kelme-pill-btn {
+  --btn-bg: #231f20;
+  --btn-text: #ffffff;
+  --btn-outline: #231f20;
   display: inline-flex;
-  animation: kelmeMarquee 34s linear infinite;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3.75rem;
+  padding: 0.45rem 1.55rem;
+  font-family: var(--text-font-family);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  font-weight: 900;
+  color: var(--btn-text);
+  border: 1px solid var(--btn-outline);
+  background-color: transparent;
+  background-image: linear-gradient(var(--btn-bg), var(--btn-bg)),
+    linear-gradient(transparent, transparent);
+  background-size: 100% 100%, 0 100%;
+  background-position: right;
+  background-repeat: no-repeat;
+  transition:
+    background-size 0.45s cubic-bezier(0.785, 0.135, 0.15, 0.86),
+    background-position 0.45s step-end,
+    color 0.45s cubic-bezier(0.785, 0.135, 0.15, 0.86),
+    border-color 0.45s cubic-bezier(0.785, 0.135, 0.15, 0.86);
+  cursor: pointer;
+  text-align: center;
 }
 
-.animate-kelme-marquee:hover {
-  animation-play-state: paused;
+.kelme-pill-btn:hover {
+  background-position: left;
+  background-size: 0 100%, 100% 100%;
+  color: var(--btn-bg);
+  border-color: var(--btn-bg);
 }
 
-/* Diagonal strike-through for out-of-stock size buttons */
-.size-btn-disabled {
-  color: #b9b6b5;
-  cursor: not-allowed;
-  background: repeating-linear-gradient(
-    135deg,
-    #ffffff 0 6px,
-    #f5f5f3 6px 12px
-  );
+/* Variant for white/colored buttons over dark imagery */
+.kelme-pill-btn-hero:hover {
+  background-position: left;
+  background-size: 0 100%, 100% 100%;
+  color: #ffffff !important;
+  border-color: var(--btn-outline) !important;
+}
+
+/* 8. 8-Second Cinematic Image Zoom (.zoom-image) */
+.kelme-zoom-image {
+  transform-origin: center;
+  transition: transform 8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.group:hover .kelme-zoom-image {
+  transform: scale(1.08);
+}
+
+/* 9. Product Card Quick-Add Button & Plus Icon 90deg Spin */
+.kelme-quick-add-btn {
+  background: #000000;
+  color: #ffffff;
+  padding: 0.625rem;
+  border-radius: 9999px;
+  opacity: 0;
+  transform: translate(-50%, 5px);
+  transition:
+    opacity 0.2s ease-in-out,
+    transform 0.2s ease-in-out;
+}
+
+.group\/card:hover .kelme-quick-add-btn {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.kelme-quick-add-btn svg {
+  transition: transform 0.2s ease-in-out;
+}
+
+.kelme-quick-add-btn:hover svg {
+  transform: rotate(90deg);
+}
+
+/* 10. Floating Carousel Circle Prev/Next Buttons */
+.kelme-circle-btn {
+  width: 3.125rem;
+  height: 3.125rem;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #1c1c1c;
+  box-shadow: 0 0.125rem 0.625rem rgba(28, 28, 28, 0.15);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition:
+    opacity 0.15s ease-in-out,
+    transform 0.2s ease-in-out;
+  overflow: hidden;
+}
+
+.group\/carousel:hover .kelme-circle-btn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.kelme-circle-btn:hover {
+  transform: translateY(0) scale(1.1) !important;
+}
+
+.kelme-circle-btn--next:hover svg {
+  animation: animateIconInlineNext 0.35s ease-in-out forwards;
+}
+
+.kelme-circle-btn--prev:hover svg {
+  animation: animateIconInlinePrev 0.35s ease-in-out forwards;
+}
+
+/* 11. Animated Underline Link (.link) */
+.kelme-link-underline {
+  text-decoration: none;
+  background: linear-gradient(to right, currentColor, currentColor) 0
+    min(100%, 1.35em) / 100% 1px no-repeat;
+  transition: background-size 0.3s ease-in-out;
+}
+
+.kelme-link-underline:hover {
+  background-size: 0 1px;
+}
+
+/* 12. Scroll-Reveal for Product Cards & Media Grid */
+@keyframes kelmeProductReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.kelme-card-hidden {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.kelme-card-revealed {
+  animation: kelmeProductReveal 0.28s ease-out forwards;
+}
+
+/* 13. Drawer & Modal Animations */
+@keyframes kelmeDrawerRightEnter {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes kelmeDrawerLeftEnter {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes kelmeOverlayFadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes kelmePopIn {
+  0% {
+    opacity: 0;
+    transform: translateY(25px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.kelme-drawer-right {
+  animation: kelmeDrawerRightEnter 0.3s cubic-bezier(0.645, 0.045, 0.355, 1) forwards;
+}
+
+.kelme-drawer-left {
+  animation: kelmeDrawerLeftEnter 0.3s cubic-bezier(0.645, 0.045, 0.355, 1) forwards;
+}
+
+.kelme-overlay-fade {
+  animation: kelmeOverlayFadeIn 0.3s cubic-bezier(0.645, 0.045, 0.355, 1) forwards;
+}
+
+.kelme-modal-pop {
+  animation: kelmePopIn 0.35s cubic-bezier(0.645, 0.045, 0.355, 1) forwards;
 }
