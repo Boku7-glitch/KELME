@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  ANNOUNCEMENT_MESSAGES,
+  KelmeLang,
+  ANNOUNCEMENT_MESSAGES_BY_LANG,
   KELME_LOGO_URL,
-  KELME_NAV_ITEMS,
+  KELME_NAV_ITEMS_BY_LANG,
   HERO_SLIDES,
   FEATURED_COLLECTION_1,
   KELME_PROMO_VIDEO_MP4,
@@ -13,9 +14,10 @@ import {
   COLLECTION_CARDS,
   JUDGEME_SUMMARY,
   BLOG_POSTS,
-  FOOTER_INFO_LINKS,
+  FOOTER_INFO_LINKS_BY_LANG,
   COUNTRIES_LIST,
-  LANGUAGES_LIST,
+  LANGUAGES_OPTIONS,
+  UI_STRINGS,
   KelmeProductItem,
 } from '../data/kelmeOfficialData';
 
@@ -101,6 +103,9 @@ function StarRating({ ratingStr }: { ratingStr: string }) {
 }
 
 export default function KelmeOfficialPage() {
+  // Language state ('en' default so it starts identical to kelme.com/en; switches everything to Georgian when 'ka')
+  const [lang, setLang] = useState<KelmeLang>('en');
+
   // Announcement bar state
   const [announcementIdx, setAnnouncementIdx] = useState(0);
 
@@ -118,7 +123,6 @@ export default function KelmeOfficialPage() {
 
   // Localization state
   const [selectedCountry, setSelectedCountry] = useState(COUNTRIES_LIST[0]);
-  const [selectedLanguage, setSelectedLanguage] = useState(LANGUAGES_LIST[0]);
   const [countryPopoverOpen, setCountryPopoverOpen] = useState(false);
   const [langPopoverOpen, setLangPopoverOpen] = useState(false);
   const [footerCountryOpen, setFooterCountryOpen] = useState(false);
@@ -154,13 +158,26 @@ export default function KelmeOfficialPage() {
   const mediaGridSectionRef = useRef<HTMLElement>(null);
   const fc2SectionRef = useRef<HTMLElement>(null);
 
+  const t = UI_STRINGS[lang];
+  const navItems = KELME_NAV_ITEMS_BY_LANG[lang];
+  const announcementMessages = ANNOUNCEMENT_MESSAGES_BY_LANG[lang];
+  const footerInfoLinks = FOOTER_INFO_LINKS_BY_LANG[lang];
+  const currentLangOption =
+    LANGUAGES_OPTIONS.find((o) => o.code === lang) || LANGUAGES_OPTIONS[0];
+
+  const getProductTitle = (product: KelmeProductItem) =>
+    lang === 'ka' ? product.titleKa : product.title;
+
+  const getCountryName = (country: (typeof COUNTRIES_LIST)[0]) =>
+    lang === 'ka' ? country.nameKa : country.name;
+
   // Auto-rotate announcement bar every 4s
   useEffect(() => {
     const timer = setInterval(() => {
-      setAnnouncementIdx((prev) => (prev + 1) % ANNOUNCEMENT_MESSAGES.length);
+      setAnnouncementIdx((prev) => (prev + 1) % announcementMessages.length);
     }, 4000);
     return () => clearInterval(timer);
-  }, []);
+  }, [announcementMessages.length]);
 
   // Auto-rotate hero slideshow every 4.5s
   useEffect(() => {
@@ -258,8 +275,10 @@ export default function KelmeOfficialPage() {
     (p, idx, arr) => arr.findIndex((x) => x.handle === p.handle) === idx
   );
   const filteredSearchProducts = searchQuery.trim()
-    ? allProducts.filter((p) =>
-        p.title.toLowerCase().includes(searchQuery.toLowerCase())
+    ? allProducts.filter(
+        (p) =>
+          p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          p.titleKa.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : allProducts.slice(0, 4);
 
@@ -338,7 +357,7 @@ export default function KelmeOfficialPage() {
               className="hidden lg:flex items-center gap-8 xl:gap-10"
               aria-label="Primary navigation"
             >
-              {KELME_NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const isOpen = activeNav === item.title;
                 const useBottomBar = item.type !== 'dropdown';
                 return (
@@ -429,9 +448,9 @@ export default function KelmeOfficialPage() {
 
           {/* Right Secondary Navigation (Country, Language, Account, Search, Cart) */}
           <div className="flex items-center justify-end gap-4 sm:gap-6">
-            <div className="hidden xl:flex items-center gap-5">
-              {/* Country Selector */}
-              <div className="relative">
+            <div className="flex items-center gap-5">
+              {/* Country Selector (Desktop) */}
+              <div className="hidden xl:block relative">
                 <button
                   type="button"
                   onClick={() => {
@@ -442,13 +461,13 @@ export default function KelmeOfficialPage() {
                 >
                   <img
                     src={selectedCountry.flag}
-                    alt={selectedCountry.name}
+                    alt={getCountryName(selectedCountry)}
                     width={20}
                     height={15}
                     className="w-5 h-[15px] object-cover rounded-[1px]"
                   />
                   <span>
-                    {selectedCountry.name} ({selectedCountry.currency})
+                    {getCountryName(selectedCountry)} ({selectedCountry.currency})
                   </span>
                   <svg
                     aria-hidden="true"
@@ -479,13 +498,13 @@ export default function KelmeOfficialPage() {
                       >
                         <img
                           src={c.flag}
-                          alt={c.name}
+                          alt={getCountryName(c)}
                           width={20}
                           height={15}
                           className="w-5 h-[15px] object-cover"
                         />
                         <span>
-                          {c.name} ({c.currency})
+                          {getCountryName(c)} ({c.currency})
                         </span>
                       </button>
                     ))}
@@ -493,7 +512,7 @@ export default function KelmeOfficialPage() {
                 )}
               </div>
 
-              {/* Language Selector */}
+              {/* Language Selector (English <-> ქართული) */}
               <div className="relative">
                 <button
                   type="button"
@@ -503,7 +522,7 @@ export default function KelmeOfficialPage() {
                   }}
                   className="kelme-heading text-[12px] text-[#231f20] hover:opacity-70 flex items-center gap-1.5 cursor-pointer transition-opacity"
                 >
-                  <span>{selectedLanguage}</span>
+                  <span>{currentLangOption.label}</span>
                   <svg
                     aria-hidden="true"
                     focusable="false"
@@ -521,17 +540,25 @@ export default function KelmeOfficialPage() {
 
                 {langPopoverOpen && (
                   <div className="kelme-mega-menu-enter absolute right-0 top-full mt-3 bg-white border border-[#d9d9d9] shadow-lg py-2 w-36 z-50">
-                    {LANGUAGES_LIST.map((lang) => (
+                    {LANGUAGES_OPTIONS.map((opt) => (
                       <button
-                        key={lang}
+                        key={opt.code}
                         type="button"
                         onClick={() => {
-                          setSelectedLanguage(lang);
+                          setLang(opt.code);
                           setLangPopoverOpen(false);
+                          setActiveNav(null);
                         }}
-                        className="w-full px-4 py-2 text-left text-[14px] text-black/65 hover:text-black transition-colors cursor-pointer"
+                        className={`w-full px-4 py-2 text-left text-[14px] transition-colors cursor-pointer flex items-center justify-between ${
+                          lang === opt.code
+                            ? 'text-black font-bold bg-black/[0.03]'
+                            : 'text-black/65 hover:text-black'
+                        }`}
                       >
-                        {lang}
+                        <span>{opt.label}</span>
+                        {lang === opt.code && (
+                          <span className="text-[11px]">✓</span>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -610,7 +637,7 @@ export default function KelmeOfficialPage() {
         </div>
 
         {/* Full-Width Staggered Mega Menu for Man & Women */}
-        {KELME_NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           if (item.type !== 'mega' || activeNav !== item.title || !item.columns)
             return null;
           return (
@@ -664,8 +691,8 @@ export default function KelmeOfficialPage() {
           onClick={() =>
             setAnnouncementIdx(
               (prev) =>
-                (prev - 1 + ANNOUNCEMENT_MESSAGES.length) %
-                ANNOUNCEMENT_MESSAGES.length
+                (prev - 1 + announcementMessages.length) %
+                announcementMessages.length
             )
           }
           className="p-1 text-white/80 hover:text-white transition-colors cursor-pointer"
@@ -688,10 +715,10 @@ export default function KelmeOfficialPage() {
 
         <div className="max-w-[35rem] flex-1 text-center overflow-hidden">
           <p
-            key={announcementIdx}
+            key={`${lang}-${announcementIdx}`}
             className="kelme-heading kelme-announcement-animate text-[10px] lg:text-[13px] tracking-[-0.04em] text-white"
           >
-            {ANNOUNCEMENT_MESSAGES[announcementIdx]}
+            {announcementMessages[announcementIdx]}
           </p>
         </div>
 
@@ -699,7 +726,7 @@ export default function KelmeOfficialPage() {
           type="button"
           onClick={() =>
             setAnnouncementIdx(
-              (prev) => (prev + 1) % ANNOUNCEMENT_MESSAGES.length
+              (prev) => (prev + 1) % announcementMessages.length
             )
           }
           className="p-1 text-white/80 hover:text-white transition-colors cursor-pointer"
@@ -733,6 +760,11 @@ export default function KelmeOfficialPage() {
             {HERO_SLIDES.map((slide, idx) => {
               const isSelected = idx === heroIdx;
               if (!isSelected) return null;
+              const slideTitle = lang === 'ka' ? slide.titleKa : slide.title;
+              const slideSubtitle =
+                lang === 'ka' ? slide.subtitleKa : slide.subtitle;
+              const slideButtonText =
+                lang === 'ka' ? slide.buttonTextKa : slide.buttonText;
               return (
                 <div
                   key={`${slide.id}-${heroIdx}`}
@@ -745,7 +777,7 @@ export default function KelmeOfficialPage() {
                     />
                     <img
                       src={slide.desktopImg}
-                      alt={slide.title}
+                      alt={slideTitle}
                       className="kelme-slide-active-img w-full h-[68vh] sm:h-[62vw] lg:h-[calc(100vw*1200/3200)] min-h-[440px] max-h-[760px] object-cover block"
                       loading={idx === 0 ? 'eager' : 'lazy'}
                     />
@@ -770,11 +802,11 @@ export default function KelmeOfficialPage() {
                     <div className="max-w-[780px] text-white flex flex-col gap-3 sm:gap-4">
                       <div className="kelme-slide-active-prose flex flex-col gap-3">
                         <h2 className="kelme-heading text-[30px] sm:text-[42px] lg:text-[46px] leading-[1.05] text-white drop-shadow-xs">
-                          {slide.title}
+                          {slideTitle}
                         </h2>
-                        {slide.subtitle && (
+                        {slideSubtitle && (
                           <p className="text-[16px] sm:text-[19px] text-white font-normal">
-                            {slide.subtitle}
+                            {slideSubtitle}
                           </p>
                         )}
                       </div>
@@ -797,7 +829,7 @@ export default function KelmeOfficialPage() {
                             } as React.CSSProperties
                           }
                         >
-                          {slide.buttonText}
+                          {slideButtonText}
                         </a>
                       </div>
                     </div>
@@ -866,7 +898,7 @@ export default function KelmeOfficialPage() {
           <div className="w-full px-5 md:px-8 lg:px-12 flex flex-col gap-8 lg:gap-12">
             <div>
               <h2 className="kelme-heading text-[24px] sm:text-[28px] lg:text-[31px] text-black">
-                ALL OUR FUTSAL
+                {t.allOurFutsal}
               </h2>
             </div>
 
@@ -904,13 +936,13 @@ export default function KelmeOfficialPage() {
                       >
                         <img
                           src={product.primaryImg}
-                          alt={product.title}
+                          alt={getProductTitle(product)}
                           loading="lazy"
                           className="w-full h-full object-contain transition-opacity duration-100 ease-in-out group-hover/card:opacity-0"
                         />
                         <img
                           src={product.secondaryImg}
-                          alt={product.title}
+                          alt={getProductTitle(product)}
                           loading="lazy"
                           className="w-full h-full object-contain absolute inset-0 opacity-0 transition-opacity duration-100 ease-in-out group-hover/card:opacity-100"
                         />
@@ -920,7 +952,7 @@ export default function KelmeOfficialPage() {
                       <button
                         type="button"
                         onClick={() => openQuickBuy(product)}
-                        aria-label="Choose options"
+                        aria-label={t.chooseOptionsAria}
                         className="kelme-quick-add-btn absolute bottom-2 left-1/2 z-10 cursor-pointer"
                       >
                         <svg
@@ -947,7 +979,7 @@ export default function KelmeOfficialPage() {
                         onClick={() => openQuickBuy(product)}
                         className="text-[15px] sm:text-[16px] leading-snug text-black hover:opacity-70 transition-opacity cursor-pointer"
                       >
-                        {product.title}
+                        {getProductTitle(product)}
                       </button>
                       <div className="flex items-center justify-center gap-2 text-[16px] mt-0.5">
                         <span className="text-[#ed1c24]">
@@ -1009,7 +1041,7 @@ export default function KelmeOfficialPage() {
             {/* See More Button */}
             <div className="flex justify-center">
               <a href="#featured-2" className="kelme-pill-btn">
-                See more
+                {t.seeMore}
               </a>
             </div>
           </div>
@@ -1042,43 +1074,47 @@ export default function KelmeOfficialPage() {
           <div className="w-full px-5 md:px-8 lg:px-[30px] flex flex-col gap-8 lg:gap-12">
             <div>
               <h2 className="kelme-heading text-[24px] sm:text-[28px] lg:text-[31px] text-black">
-                Ignite - nuevo lanzamiento
+                {t.igniteHeading}
               </h2>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-[30px]">
-              {MEDIA_GRID_ITEMS.map((item, idx) => (
-                <a
-                  key={item.id}
-                  href={item.href}
-                  className={`group relative block h-[420px] sm:h-[480px] lg:h-[580px] overflow-hidden bg-black transition-opacity duration-500 ${
-                    mediaGridRevealed ? 'opacity-100' : 'opacity-0'
-                  }`}
-                  style={{ transitionDelay: `${idx * 0.08}s` }}
-                >
-                  <img
-                    src={item.img}
-                    alt={item.buttonText}
-                    loading="lazy"
-                    className="kelme-zoom-image w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/19 pointer-events-none" />
-                  <div className="absolute inset-0 p-6 sm:p-8 flex items-end justify-center text-center">
-                    <span
-                      className="kelme-pill-btn kelme-pill-btn-hero"
-                      style={
-                        {
-                          '--btn-bg': item.buttonBg,
-                          '--btn-text': item.buttonTextColor,
-                          '--btn-outline': item.buttonBg,
-                        } as React.CSSProperties
-                      }
-                    >
-                      {item.buttonText}
-                    </span>
-                  </div>
-                </a>
-              ))}
+              {MEDIA_GRID_ITEMS.map((item, idx) => {
+                const btnLabel =
+                  lang === 'ka' ? item.buttonTextKa : item.buttonText;
+                return (
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    className={`group relative block h-[420px] sm:h-[480px] lg:h-[580px] overflow-hidden bg-black transition-opacity duration-500 ${
+                      mediaGridRevealed ? 'opacity-100' : 'opacity-0'
+                    }`}
+                    style={{ transitionDelay: `${idx * 0.08}s` }}
+                  >
+                    <img
+                      src={item.img}
+                      alt={btnLabel}
+                      loading="lazy"
+                      className="kelme-zoom-image w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/19 pointer-events-none" />
+                    <div className="absolute inset-0 p-6 sm:p-8 flex items-end justify-center text-center">
+                      <span
+                        className="kelme-pill-btn kelme-pill-btn-hero"
+                        style={
+                          {
+                            '--btn-bg': item.buttonBg,
+                            '--btn-text': item.buttonTextColor,
+                            '--btn-outline': item.buttonBg,
+                          } as React.CSSProperties
+                        }
+                      >
+                        {btnLabel}
+                      </span>
+                    </div>
+                  </a>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -1094,7 +1130,7 @@ export default function KelmeOfficialPage() {
           <div className="w-full px-5 md:px-8 lg:px-12 flex flex-col gap-8 lg:gap-12">
             <div>
               <h2 className="kelme-heading text-[24px] sm:text-[28px] lg:text-[31px] text-black">
-                ALL OUR FUTSAL
+                {t.allOurFutsal}
               </h2>
             </div>
 
@@ -1129,13 +1165,13 @@ export default function KelmeOfficialPage() {
                       >
                         <img
                           src={product.primaryImg}
-                          alt={product.title}
+                          alt={getProductTitle(product)}
                           loading="lazy"
                           className="w-full h-full object-contain transition-opacity duration-100 ease-in-out group-hover/card:opacity-0"
                         />
                         <img
                           src={product.secondaryImg}
-                          alt={product.title}
+                          alt={getProductTitle(product)}
                           loading="lazy"
                           className="w-full h-full object-contain absolute inset-0 opacity-0 transition-opacity duration-100 ease-in-out group-hover/card:opacity-100"
                         />
@@ -1144,7 +1180,7 @@ export default function KelmeOfficialPage() {
                       <button
                         type="button"
                         onClick={() => openQuickBuy(product)}
-                        aria-label="Choose options"
+                        aria-label={t.chooseOptionsAria}
                         className="kelme-quick-add-btn absolute bottom-2 left-1/2 z-10 cursor-pointer"
                       >
                         <svg
@@ -1170,7 +1206,7 @@ export default function KelmeOfficialPage() {
                         onClick={() => openQuickBuy(product)}
                         className="text-[15px] sm:text-[16px] leading-snug text-black hover:opacity-70 transition-opacity cursor-pointer"
                       >
-                        {product.title}
+                        {getProductTitle(product)}
                       </button>
                       <div className="flex items-center justify-center gap-2 text-[16px] mt-0.5">
                         <span className="text-[#ed1c24]">
@@ -1230,7 +1266,7 @@ export default function KelmeOfficialPage() {
 
             <div className="flex justify-center">
               <a href="#collections" className="kelme-pill-btn">
-                See more
+                {t.seeMore}
               </a>
             </div>
           </div>
@@ -1246,25 +1282,28 @@ export default function KelmeOfficialPage() {
                 ref={colListRef}
                 className="grid grid-flow-col auto-cols-[84vw] sm:auto-cols-[62vw] lg:auto-cols-[calc((100%-60px)/3)] gap-6 lg:gap-[30px] overflow-x-auto snap-x snap-mandatory no-scrollbar"
               >
-                {COLLECTION_CARDS.map((card) => (
-                  <a
-                    key={card.id}
-                    href={card.href}
-                    className="group relative aspect-square w-full overflow-hidden snap-center block bg-neutral-100"
-                  >
-                    <img
-                      src={card.img}
-                      alt={card.title}
-                      loading="lazy"
-                      className="kelme-zoom-image w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 p-6 sm:p-8 flex items-end justify-start">
-                      <span className="kelme-pill-btn kelme-pill-btn-hero">
-                        {card.title}
-                      </span>
-                    </div>
-                  </a>
-                ))}
+                {COLLECTION_CARDS.map((card) => {
+                  const cardTitle = lang === 'ka' ? card.titleKa : card.title;
+                  return (
+                    <a
+                      key={card.id}
+                      href={card.href}
+                      className="group relative aspect-square w-full overflow-hidden snap-center block bg-neutral-100"
+                    >
+                      <img
+                        src={card.img}
+                        alt={cardTitle}
+                        loading="lazy"
+                        className="kelme-zoom-image w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 p-6 sm:p-8 flex items-end justify-start">
+                        <span className="kelme-pill-btn kelme-pill-btn-hero">
+                          {cardTitle}
+                        </span>
+                      </div>
+                    </a>
+                  );
+                })}
               </div>
 
               <button
@@ -1336,8 +1375,7 @@ export default function KelmeOfficialPage() {
                     ))}
                   </div>
                   <p className="text-[14px] text-[#787878]">
-                    Based on {JUDGEME_SUMMARY.numberOfReviews.toLocaleString()}{' '}
-                    reviews
+                    {t.basedOnReviews('3,585')}
                   </p>
                 </div>
 
@@ -1367,7 +1405,10 @@ export default function KelmeOfficialPage() {
 
               {/* Keywords */}
               <div className="flex flex-wrap items-center justify-center gap-2">
-                {JUDGEME_SUMMARY.keywords.map((kw) => (
+                {(lang === 'ka'
+                  ? JUDGEME_SUMMARY.keywordsKa
+                  : JUDGEME_SUMMARY.keywords
+                ).map((kw) => (
                   <span
                     key={kw}
                     className="px-3 py-1 bg-white border border-black/10 rounded-full text-[13px] text-black flex items-center gap-1.5"
@@ -1384,13 +1425,15 @@ export default function KelmeOfficialPage() {
                   onClick={() => setShowAiSummary((v) => !v)}
                   className="px-5 py-2.5 rounded-lg bg-black text-white text-[14px] font-bold hover:opacity-85 transition-opacity cursor-pointer"
                 >
-                  Ver resumen de reseñas de IA
+                  {t.aiSummaryBtn}
                 </button>
               </div>
 
               {showAiSummary && (
                 <p className="kelme-mega-menu-enter max-w-2xl text-[15px] text-[#333333] leading-relaxed bg-white p-5 rounded-lg border border-black/10">
-                  {JUDGEME_SUMMARY.aiSummaryText}
+                  {lang === 'ka'
+                    ? JUDGEME_SUMMARY.aiSummaryTextKa
+                    : JUDGEME_SUMMARY.aiSummaryText}
                 </p>
               )}
             </div>
@@ -1406,54 +1449,61 @@ export default function KelmeOfficialPage() {
         >
           <div className="max-w-[1260px] mx-auto px-5 md:px-8 lg:px-12 flex flex-col gap-10 lg:gap-12">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-10">
-              {BLOG_POSTS.map((post) => (
-                <article
-                  key={post.id}
-                  className="group flex flex-col gap-5 items-start"
-                >
-                  <a
-                    href={post.href}
-                    className="w-full aspect-square overflow-hidden block bg-neutral-100"
+              {BLOG_POSTS.map((post) => {
+                const postCategory =
+                  lang === 'ka' ? post.categoryKa : post.category;
+                const postTitle = lang === 'ka' ? post.titleKa : post.title;
+                const postExcerpt =
+                  lang === 'ka' ? post.excerptKa : post.excerpt;
+                return (
+                  <article
+                    key={post.id}
+                    className="group flex flex-col gap-5 items-start"
                   >
-                    <img
-                      src={post.img}
-                      alt={post.title}
-                      loading="lazy"
-                      className="kelme-zoom-image w-full h-full object-cover"
-                    />
-                  </a>
-                  <div className="flex flex-col items-start gap-3">
                     <a
                       href={post.href}
-                      className="kelme-heading text-[11px] text-black/65 hover:text-black transition-colors duration-200"
+                      className="w-full aspect-square overflow-hidden block bg-neutral-100"
                     >
-                      {post.category}
+                      <img
+                        src={post.img}
+                        alt={postTitle}
+                        loading="lazy"
+                        className="kelme-zoom-image w-full h-full object-cover"
+                      />
                     </a>
-                    <h3 className="kelme-heading text-[19px] lg:text-[22px] leading-tight text-black">
+                    <div className="flex flex-col items-start gap-3">
                       <a
                         href={post.href}
-                        className="hover:opacity-75 transition-opacity"
+                        className="kelme-heading text-[11px] text-black/65 hover:text-black transition-colors duration-200"
                       >
-                        {post.title}
+                        {postCategory}
                       </a>
-                    </h3>
-                    <p className="text-[16px] text-black/80 leading-relaxed">
-                      {post.excerpt}
-                    </p>
-                    <a
-                      href={post.href}
-                      className="kelme-link-underline text-[16px] text-black"
-                    >
-                      Read more
-                    </a>
-                  </div>
-                </article>
-              ))}
+                      <h3 className="kelme-heading text-[19px] lg:text-[22px] leading-tight text-black">
+                        <a
+                          href={post.href}
+                          className="hover:opacity-75 transition-opacity"
+                        >
+                          {postTitle}
+                        </a>
+                      </h3>
+                      <p className="text-[16px] text-black/80 leading-relaxed">
+                        {postExcerpt}
+                      </p>
+                      <a
+                        href={post.href}
+                        className="kelme-link-underline text-[16px] text-black"
+                      >
+                        {t.readMore}
+                      </a>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
 
             <div className="flex justify-center">
               <a href="#blog" className="kelme-pill-btn">
-                See more
+                {t.seeMore}
               </a>
             </div>
           </div>
@@ -1473,10 +1523,10 @@ export default function KelmeOfficialPage() {
             {/* Block 1: Newsletter */}
             <div className="flex-1 max-w-md flex flex-col gap-4 sm:gap-5 w-full">
               <p className="kelme-heading text-[16px] text-[#231f20]">
-                Newsletter
+                {t.newsletterTitle}
               </p>
               <p className="text-[16px] text-[#231f20]/70">
-                Sign up to receive our best offers and see the latest releases
+                {t.newsletterSubtitle}
               </p>
               <form
                 onSubmit={(e) => {
@@ -1493,17 +1543,17 @@ export default function KelmeOfficialPage() {
                   required
                   value={newsletterEmail}
                   onChange={(e) => setNewsletterEmail(e.target.value)}
-                  placeholder="E-mail"
+                  placeholder={t.emailPlaceholder}
                   className="w-full border border-[#d9d9d9] bg-white px-3.5 py-2.5 text-[16px] text-black placeholder:text-black/50 focus:outline-none focus:border-black rounded-none transition-colors"
                 />
                 <div>
                   <button type="submit" className="kelme-pill-btn">
-                    Subscribe
+                    {t.subscribeBtn}
                   </button>
                 </div>
                 {newsletterSubscribed && (
                   <p className="kelme-mega-menu-enter text-[14px] text-[#307a07] font-medium">
-                    Thank you for subscribing to Kelme newsletter!
+                    {t.subscribeSuccess}
                   </p>
                 )}
               </form>
@@ -1512,10 +1562,10 @@ export default function KelmeOfficialPage() {
             {/* Block 2: More information */}
             <div className="flex flex-col gap-4 sm:gap-5 min-w-[180px]">
               <p className="kelme-heading text-[16px] text-[#231f20]">
-                More information
+                {t.moreInfoTitle}
               </p>
               <ul className="flex flex-col gap-2.5">
-                {FOOTER_INFO_LINKS.map((link) => (
+                {footerInfoLinks.map((link) => (
                   <li key={link.label}>
                     <a
                       href={link.href}
@@ -1531,14 +1581,10 @@ export default function KelmeOfficialPage() {
             {/* Block 3: ABOUT KELME */}
             <div className="flex-1 max-w-lg flex flex-col gap-4 sm:gap-5">
               <p className="kelme-heading text-[16px] text-[#231f20]">
-                ABOUT KELME
+                {t.aboutKelmeTitle}
               </p>
               <p className="text-[16px] text-[#231f20]/70 leading-relaxed">
-                KELME is a Spanish sports equipment brand with over 60 years of
-                history. A leader in the world of indoor soccer and football, we
-                use the latest and greatest technologies dedicated to each sport
-                to offer durable, lightweight, and flexible footwear that
-                guarantees the best performance for all players.
+                {t.aboutKelmeBody}
               </p>
               <div className="pt-2">
                 <a
@@ -1553,7 +1599,7 @@ export default function KelmeOfficialPage() {
                   >
                     <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
                   </svg>
-                  Follow on Shop
+                  {t.followOnShop}
                 </a>
               </div>
             </div>
@@ -1574,13 +1620,13 @@ export default function KelmeOfficialPage() {
                 >
                   <img
                     src={selectedCountry.flag}
-                    alt={selectedCountry.name}
+                    alt={getCountryName(selectedCountry)}
                     width={20}
                     height={15}
                     className="w-5 h-[15px] object-cover"
                   />
                   <span>
-                    {selectedCountry.name} ({selectedCountry.currency})
+                    {getCountryName(selectedCountry)} ({selectedCountry.currency})
                   </span>
                   <svg
                     aria-hidden="true"
@@ -1611,13 +1657,13 @@ export default function KelmeOfficialPage() {
                       >
                         <img
                           src={c.flag}
-                          alt={c.name}
+                          alt={getCountryName(c)}
                           width={20}
                           height={15}
                           className="w-5 h-[15px] object-cover"
                         />
                         <span>
-                          {c.name} ({c.currency})
+                          {getCountryName(c)} ({c.currency})
                         </span>
                       </button>
                     ))}
@@ -1634,7 +1680,7 @@ export default function KelmeOfficialPage() {
                   }}
                   className="kelme-heading text-[12px] text-[#231f20]/65 hover:text-[#231f20] transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>{selectedLanguage}</span>
+                  <span>{currentLangOption.label}</span>
                   <svg
                     aria-hidden="true"
                     focusable="false"
@@ -1652,17 +1698,24 @@ export default function KelmeOfficialPage() {
 
                 {footerLangOpen && (
                   <div className="kelme-mega-menu-enter absolute left-0 bottom-full mb-2 bg-white border border-[#d9d9d9] shadow-lg py-2 w-36 z-50">
-                    {LANGUAGES_LIST.map((lang) => (
+                    {LANGUAGES_OPTIONS.map((opt) => (
                       <button
-                        key={lang}
+                        key={opt.code}
                         type="button"
                         onClick={() => {
-                          setSelectedLanguage(lang);
+                          setLang(opt.code);
                           setFooterLangOpen(false);
                         }}
-                        className="w-full px-4 py-2 text-left text-[14px] text-black/65 hover:text-black transition-colors cursor-pointer"
+                        className={`w-full px-4 py-2 text-left text-[14px] transition-colors cursor-pointer flex items-center justify-between ${
+                          lang === opt.code
+                            ? 'text-black font-bold bg-black/[0.03]'
+                            : 'text-black/65 hover:text-black'
+                        }`}
                       >
-                        {lang}
+                        <span>{opt.label}</span>
+                        {lang === opt.code && (
+                          <span className="text-[11px]">✓</span>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -1672,7 +1725,7 @@ export default function KelmeOfficialPage() {
 
             {/* Copyright */}
             <p className="kelme-heading text-[12px] text-[#231f20]/65">
-              © 2026 - Kelme España
+              {t.copyrightText}
             </p>
 
             {/* Payment Method Icons Row */}
@@ -1872,7 +1925,7 @@ export default function KelmeOfficialPage() {
               </div>
 
               <ul className="flex flex-col divide-y divide-[#d9d9d9]/60">
-                {KELME_NAV_ITEMS.map((item, idx) => {
+                {navItems.map((item, idx) => {
                   const hasChildren =
                     (item.columns && item.columns.length > 0) ||
                     (item.groups && item.groups.length > 0);
@@ -1963,9 +2016,24 @@ export default function KelmeOfficialPage() {
 
             <div className="pt-6 border-t border-[#d9d9d9] flex items-center justify-between text-[13px] kelme-heading">
               <span>
-                {selectedCountry.name} ({selectedCountry.currency})
+                {getCountryName(selectedCountry)} ({selectedCountry.currency})
               </span>
-              <span>{selectedLanguage}</span>
+              <div className="flex items-center gap-2">
+                {LANGUAGES_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.code}
+                    type="button"
+                    onClick={() => setLang(opt.code)}
+                    className={`px-2 py-1 border text-[12px] cursor-pointer ${
+                      lang === opt.code
+                        ? 'border-black bg-black text-white'
+                        : 'border-[#d9d9d9] text-black/70'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -1980,7 +2048,9 @@ export default function KelmeOfficialPage() {
           />
           <div className="kelme-drawer-right relative z-10 w-full max-w-[440px] bg-white h-full flex flex-col justify-between p-6 sm:p-8 shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#deddde] pb-5">
-              <p className="kelme-heading text-[22px] text-[#231f20]">Cart</p>
+              <p className="kelme-heading text-[22px] text-[#231f20]">
+                {t.cartTitle}
+              </p>
               <button
                 type="button"
                 onClick={() => setCartOpen(false)}
@@ -1994,14 +2064,14 @@ export default function KelmeOfficialPage() {
             {cart.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center gap-6">
                 <p className="kelme-heading text-[20px] text-[#231f20]">
-                  Your cart is empty
+                  {t.cartEmpty}
                 </p>
                 <button
                   type="button"
                   onClick={() => setCartOpen(false)}
                   className="kelme-pill-btn"
                 >
-                  Continue shopping
+                  {t.continueShopping}
                 </button>
               </div>
             ) : (
@@ -2014,15 +2084,15 @@ export default function KelmeOfficialPage() {
                     >
                       <img
                         src={item.product.primaryImg}
-                        alt={item.product.title}
+                        alt={getProductTitle(item.product)}
                         className="w-20 h-20 object-contain bg-neutral-50 shrink-0"
                       />
                       <div className="flex-1 flex flex-col gap-1">
                         <p className="text-[14px] font-bold text-[#231f20] leading-snug">
-                          {item.product.title}
+                          {getProductTitle(item.product)}
                         </p>
                         <p className="text-[13px] text-black/60">
-                          Size: EU {item.size}
+                          {t.sizeLabel} {item.size}
                         </p>
                         <p className="text-[14px] text-[#ed1c24] font-bold">
                           {formatMoney(item.product.salePrice)}
@@ -2059,27 +2129,23 @@ export default function KelmeOfficialPage() {
 
                 <div className="border-t border-[#deddde] pt-5 flex flex-col gap-4">
                   <div className="flex items-center justify-between text-[18px] font-bold">
-                    <span className="kelme-heading">Total</span>
+                    <span className="kelme-heading">{t.totalLabel}</span>
                     <span>{formatMoney(totalCartAmount)}</span>
                   </div>
                   <p className="text-[13px] text-black/60">
-                    Shipping & taxes calculated at checkout.{' '}
-                    {totalCartAmount >= 50
-                      ? '✓ You qualify for FREE SHIPPING!'
-                      : ''}
+                    {t.shippingNote}{' '}
+                    {totalCartAmount >= 50 ? t.freeShippingQualify : ''}
                   </p>
                   <button
                     type="button"
                     onClick={() => {
-                      alert(
-                        `Order placed! Total: ${formatMoney(totalCartAmount)}`
-                      );
+                      alert(t.orderPlacedAlert(formatMoney(totalCartAmount)));
                       setCart([]);
                       setCartOpen(false);
                     }}
                     className="kelme-pill-btn w-full"
                   >
-                    Checkout
+                    {t.checkoutBtn}
                   </button>
                 </div>
               </>
@@ -2115,7 +2181,7 @@ export default function KelmeOfficialPage() {
                   autoFocus
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search for products, futsal shoes, running..."
+                  placeholder={t.searchPlaceholder}
                   className="flex-1 text-[18px] focus:outline-none text-black"
                 />
                 <button
@@ -2141,11 +2207,11 @@ export default function KelmeOfficialPage() {
                   >
                     <img
                       src={p.primaryImg}
-                      alt={p.title}
+                      alt={getProductTitle(p)}
                       className="w-full aspect-square object-contain group-hover:scale-105 transition-transform duration-300"
                     />
                     <span className="text-[14px] text-black line-clamp-1">
-                      {p.title}
+                      {getProductTitle(p)}
                     </span>
                     <span className="text-[14px] text-[#ed1c24] font-bold">
                       {formatMoney(p.salePrice)}
@@ -2181,14 +2247,14 @@ export default function KelmeOfficialPage() {
               </span>
               <img
                 src={quickBuyProduct.primaryImg}
-                alt={quickBuyProduct.title}
+                alt={getProductTitle(quickBuyProduct)}
                 className="w-full h-full object-contain"
               />
             </div>
 
             <div className="flex flex-col gap-4">
               <h3 className="kelme-heading text-[22px] leading-tight text-[#231f20]">
-                {quickBuyProduct.title}
+                {getProductTitle(quickBuyProduct)}
               </h3>
 
               <div className="flex items-center gap-3 text-[20px]">
@@ -2204,7 +2270,7 @@ export default function KelmeOfficialPage() {
 
               <div className="flex flex-col gap-2 mt-2">
                 <span className="text-[14px] font-bold text-[#231f20]">
-                  Size (EU): {selectedSize}
+                  {t.sizeEuLabel} {selectedSize}
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {quickBuyProduct.sizes.map((sz) => (
@@ -2229,7 +2295,7 @@ export default function KelmeOfficialPage() {
                 onClick={() => addToCart(quickBuyProduct, selectedSize)}
                 className="kelme-pill-btn mt-3 w-full"
               >
-                Add to cart
+                {t.addToCartBtn}
               </button>
             </div>
           </div>
@@ -2246,7 +2312,7 @@ export default function KelmeOfficialPage() {
           <div className="kelme-modal-pop relative z-10 bg-white w-full max-w-[440px] p-8 shadow-2xl flex flex-col gap-5">
             <div className="flex items-center justify-between">
               <h3 className="kelme-heading text-[24px] text-[#231f20]">
-                Login
+                {t.loginTitle}
               </h3>
               <button
                 type="button"
@@ -2256,9 +2322,7 @@ export default function KelmeOfficialPage() {
                 ✕
               </button>
             </div>
-            <p className="text-[15px] text-black/70">
-              Enter your email and password to login:
-            </p>
+            <p className="text-[15px] text-black/70">{t.loginPrompt}</p>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -2269,17 +2333,17 @@ export default function KelmeOfficialPage() {
               <input
                 type="email"
                 required
-                placeholder="E-mail"
+                placeholder={t.emailPlaceholder}
                 className="w-full border border-[#d9d9d9] px-3.5 py-2.5 text-[16px] focus:outline-none focus:border-black"
               />
               <input
                 type="password"
                 required
-                placeholder="Password"
+                placeholder={t.passwordPlaceholder}
                 className="w-full border border-[#d9d9d9] px-3.5 py-2.5 text-[16px] focus:outline-none focus:border-black"
               />
               <button type="submit" className="kelme-pill-btn w-full">
-                Login
+                {t.loginBtn}
               </button>
             </form>
           </div>

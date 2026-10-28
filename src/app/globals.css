@@ -39,8 +39,8 @@
 }
 
 :root {
-  --heading-font-family: "Cabin", sans-serif;
-  --text-font-family: Helvetica, Arial, sans-serif;
+  --heading-font-family: "Cabin", "Noto Sans Georgian", sans-serif;
+  --text-font-family: Helvetica, Arial, "Noto Sans Georgian", sans-serif;
   --accent: #231f20;
   --on-sale: #ed1c24;
   --footer-bg: #fafafa;
